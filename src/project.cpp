@@ -140,25 +140,25 @@ void project::create_project_files() {
 
     // NOTE: Switching styles sometimes might not work because https://shouldiblamecaching.com/
     // just why?????
-    file_stream << "main=";                                                 // Window type
-    file_stream << "\"" << title << "\",";                                  // Title bar text
-    file_stream << "\"" << "proj.hhc" << "\",";                             // Table of contents .hhc file
-    file_stream << ",";                                                     // Index .hhk file
-    file_stream << default_file << ",";                                     // Default html file
-    file_stream << default_file << ",";                                     // File shown when home button was pressed
-    file_stream << ",,";                                                    // Jump1 button file to open and text
-    file_stream << ",,";                                                    // Jump2 button file to open and text
-    file_stream << "0x" << std::hex << default_style << std::dec << ",";    // Navigation pane style bitfield
-    file_stream << ",";                                                     // Navigation pane width in pixels
-    file_stream << "0x" << std::hex << default_buttons << std::dec << ",";  // Buttons to show bitfield
-    file_stream << "[,,,],";                                                // Initial position [left, top, right, bottom]
-    file_stream << "0xB0000,";                                              // why? Window style (https://learn.microsoft.com/en-us/windows/win32/winmsg/window-styles)
-    file_stream << ",";                                                     // Extended window style...
-    file_stream << ",";                                                     // Window show state (https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow)
-    file_stream << ",";                                                     // Navigation pane shoud be closed? 0/1
-    file_stream << ",";                                                     // Default navigation pane tab 0 = Table of contents
-    file_stream << ",";                                                     // Navigation pane tabs on the top
-    file_stream << "0\n";                                                   // idk
+    file_stream << "main=";                                                     // Window type
+    file_stream << "\"" << title << "\",";                                      // Title bar text
+    file_stream << "\"" << "proj.hhc" << "\",";                                 // Table of contents .hhc file
+    file_stream << ",";                                                         // Index .hhk file
+    file_stream << default_file << ",";                                         // Default html file
+    file_stream << default_file << ",";                                         // File shown when home button was pressed
+    file_stream << ",,";                                                        // Jump1 button file to open and text
+    file_stream << ",,";                                                        // Jump2 button file to open and text
+    file_stream << "0x" << std::hex << chm::default_style << std::dec << ",";   // Navigation pane style bitfield
+    file_stream << ",";                                                         // Navigation pane width in pixels
+    file_stream << "0x" << std::hex << chm::default_buttons << std::dec << ","; // Buttons to show bitfield
+    file_stream << "[,,,],";                                                    // Initial position [left, top, right, bottom]
+    file_stream << "0xB0000,";                                                  // why? Window style (https://learn.microsoft.com/en-us/windows/win32/winmsg/window-styles)
+    file_stream << ",";                                                         // Extended window style...
+    file_stream << ",";                                                         // Window show state (https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow)
+    file_stream << ",";                                                         // Navigation pane shoud be closed? 0/1
+    file_stream << ",";                                                         // Default navigation pane tab 0 = Table of contents
+    file_stream << ",";                                                         // Navigation pane tabs on the top
+    file_stream << "0\n";                                                       // idk
 
     file_stream << "[FILES]\n";
     for (auto &&f : files) {
@@ -207,7 +207,7 @@ std::string project::to_hhc(toc_item& item) {
     if(item.file_link) {
         temp += "<param name=\"Local\" value=\"" + std::filesystem::relative(*item.file_link, temp_path).string() + "\">\n";
     }
-    
+
     temp += "</OBJECT>\n";
 
     if(item.children.size() == 0) {
