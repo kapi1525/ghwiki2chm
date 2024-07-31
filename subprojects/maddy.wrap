@@ -1,0 +1,7 @@
+[wrap-git]
+directory = maddy
+url = https://github.com/progsource/maddy
+revision = 1.3.0
+depth = 1
+clone-recursive = true
+method = cmake
