@@ -1,14 +1,17 @@
-// im losing my mind
-
 #pragma once
 
 #include <cstdint>
+#include <vector>
+#include <deque>
+#include <string>
+#include <filesystem>
+#include <variant>
 
 
-
-// https://www.nongnu.org/chmspec/latest/INI.html#HHP_WINDOWS
 
 namespace chm {
+
+    // https://www.nongnu.org/chmspec/latest/INI.html#HHP_WINDOWS
     enum navigation_window_style : uint32_t {
         auto_hide_sidebar       = 0x00000001, // Automatically hide/show tri-pane window: when the help window has focus the navigation pane is visible, otherwise it is hidden.
         always_on_top           = 0x00000002, // Keep the help window on top.
@@ -69,4 +72,56 @@ namespace chm {
 
         default_buttons = (hide_show | locate | back | forward | home | print | options),
     };
+
+
+
+    struct toc_item {
+        std::string name;
+        std::filesystem::path* file_link = nullptr;
+        std::vector<toc_item> children;
+    };
+
+    using table_of_contents = std::vector<toc_item>;
+
+
+    class project {
+    public:
+        project() = default;
+        ~project() = default;
+
+        std::filesystem::path root_path, temp_path, out_file;
+        std::filesystem::path* default_file_link = nullptr;
+        std::string title = "test";
+        std::deque<std::filesystem::path> files;
+        table_of_contents toc;
+
+        // create a project config automaticaly from md files and _Sidebar.
+        void create_from_ghwiki(std::filesystem::path default_file);
+
+        void convert_source_files();    // Copy or covert project source files to temp dir
+        // void scan_html();               // Scan generated html files for dependencies (images, js files) and include them into the project
+        void create_default_toc();      // Create toc by looking for header tags in generated html
+        void create_project_files();    // Create .hhc .hhp
+
+    private:
+        std::string to_hhc(toc_item& item);
+    };
+
+
+
+    // Special arguments that shoud be replaced with actual value before calling the compiler
+    enum class compiler_special_arg {
+        project_file_path,
+    };
+
+    struct compiler_info {
+        std::string executable;
+        std::vector<std::variant<std::string, compiler_special_arg>> args;
+    };
+
+
+    std::filesystem::path find_executable(std::string command);
+    const compiler_info* find_available_compiler();
+    bool is_compiler_valid(const compiler_info* compiler);
+    bool compile(project* proj, const compiler_info* compiler);
 }

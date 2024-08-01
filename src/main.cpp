@@ -3,7 +3,7 @@
 #include <filesystem>
 
 #include "args.hpp"
-#include "project.hpp"
+#include "chm.hpp"
 
 
 
@@ -30,7 +30,7 @@ void print_help() {
 
 
 int main(int argc, const char *argv[]) {
-    project proj;
+    chm::project proj;
 
     proj.title = "Untitled project";
     proj.root_path = std::filesystem::current_path();
@@ -79,7 +79,14 @@ int main(int argc, const char *argv[]) {
     proj.convert_source_files();
     proj.create_default_toc();
     proj.create_project_files();
-    proj.compile_project();
+
+    auto* compiler = chm::find_available_compiler();
+    if(!compiler) {
+        std::printf("Could'nt find any compatible chm compiler, make sure one is installed.\n");
+    }
+    if(!chm::compile(&proj, compiler)) {
+        std::printf("Compilation failed.\n");
+    }
 
     return 0;
 }

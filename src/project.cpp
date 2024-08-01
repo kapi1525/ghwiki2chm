@@ -3,17 +3,13 @@
 #include <filesystem>
 #include <fstream>
 
-// POSIX specific
-#include <unistd.h>
-#include <sys/wait.h>
-
-#include "project.hpp"
+#include "chm.hpp"
 #include "maddy/parser.h"
 #include "chm.hpp"
 
 
 
-void project::create_from_ghwiki(std::filesystem::path default_file) {
+void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
     for (auto &&dir_entry : std::filesystem::recursive_directory_iterator(root_path)) {
         // Skip all non-file entries
         if(!dir_entry.is_regular_file()) {
@@ -55,7 +51,7 @@ void project::create_from_ghwiki(std::filesystem::path default_file) {
 
 
 
-void project::convert_source_files() {
+void chm::project::convert_source_files() {
     for (auto &&file_path : files) {
         if(file_path.extension() == ".md") {
             // md to html parser
@@ -99,7 +95,7 @@ void project::convert_source_files() {
 
 
 // TODO: Scan generated html files for header tags
-void project::create_default_toc() {
+void chm::project::create_default_toc() {
     for (auto &&file : files) {
         toc.push_back({file.filename().string(), &file, {}});
     }
@@ -107,7 +103,7 @@ void project::create_default_toc() {
 
 
 
-void project::create_project_files() {
+void chm::project::create_project_files() {
     std::ofstream file_stream;
 
     // .gitihnore
@@ -198,7 +194,7 @@ void project::create_project_files() {
 
 
 
-std::string project::to_hhc(toc_item& item) {
+std::string chm::project::to_hhc(toc_item& item) {
     std::string temp = "";
 
     temp += "<LI> <OBJECT type=\"text/sitemap\">\n";
@@ -223,25 +219,4 @@ std::string project::to_hhc(toc_item& item) {
     temp += "</UL>\n";
 
     return temp;
-}
-
-
-
-void project::compile_project() {
-    pid_t pid = fork();
-    if(pid == 0) {
-        // Child process
-        std::filesystem::current_path(temp_path);
-        // --no-html-scan - assume maddy produces correct html
-        if(execlp("chmcmd", "chmcmd", "proj.hhp", "--no-html-scan", 0) == -1) {
-            perror("execlp failed");
-        }
-    } else if(pid > 0) {
-        int status;
-        if(waitpid(pid, &status, 0) != pid) {
-            perror("waitpid() failed");
-        }
-    } else {
-        perror("fork() failed");
-    }
 }
