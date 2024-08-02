@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <regex>
+#include <cctype>
 
 #include "chm.hpp"
 #include "maddy/parser.h"
@@ -70,6 +71,7 @@ void chm::project::convert_source_files() {
         }
 
         scan_html_for_dependencies(html_out);
+        update_html_headings(html_out);
 
         // Update the path
         file_path = temp_path / std::filesystem::relative(file_path, root_path).replace_extension(".html");
@@ -93,7 +95,7 @@ void chm::project::convert_source_files() {
         std::cout << "Copying: " << std::filesystem::relative(file_path) << std::endl;
 
         auto new_path = temp_path / std::filesystem::relative(file_path);
-        std::filesystem::copy_file(file_path, new_path);
+        std::filesystem::copy_file(file_path, new_path, std::filesystem::copy_options::overwrite_existing);
 
         file_path = new_path;
     }
@@ -247,10 +249,51 @@ void chm::project::scan_html_for_dependencies(std::string& html) {
 
         // If local add the file to project.
         if(!is_web_link && std::filesystem::exists(root_path / url)) {
-            std::cout << url << std::endl;
             files.push_back(root_path / url);
         }
 
         // TODO: Download images from the web
+    }
+}
+
+void chm::project::update_html_headings(std::string& html) {
+    std::vector<std::regex> heading_tag_tests = {
+        std::regex("<(h1)>(.*?)<\\/(h1)>"),
+        std::regex("<(h2)>(.*?)<\\/(h2)>"),
+        std::regex("<(h3)>(.*?)<\\/(h3)>"),
+        std::regex("<(h4)>(.*?)<\\/(h4)>"),
+        std::regex("<(h5)>(.*?)<\\/(h5)>"),
+        std::regex("<(h6)>(.*?)<\\/(h6)>"),
+    };
+
+    for (auto &&regex : heading_tag_tests) {
+        while (true) {
+            std::smatch match;
+            if(!std::regex_search(html, match, regex)) {
+                break;
+            }
+
+            std::string new_tag = "<";
+            new_tag += match[1];
+            new_tag += " id=\"";
+
+            for (auto c : match[2].str()) {
+                if(std::isspace(c)) {
+                    new_tag += '-';
+                }
+                if(std::isalnum(c)) {
+                    new_tag += std::tolower(c);
+                }
+            }
+
+            new_tag += "\">";
+            new_tag += match[2];
+            new_tag += "</";
+            new_tag += match[3];
+            new_tag += ">";
+            html.replace(match.position(), match.length(), new_tag);
+        }
+
+        // html = std::regex_replace(html, regex, "<$1 id=\"\\L$2\">$2</$3>");
     }
 }

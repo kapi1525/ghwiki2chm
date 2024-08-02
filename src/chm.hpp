@@ -106,6 +106,7 @@ namespace chm {
     private:
         std::string to_hhc(toc_item& item);
         void scan_html_for_dependencies(std::string& html); // Looks for dependencies like images and includes them into the project
+        void update_html_headings(std::string& html);       // Update heading tags (<h1>) to include id like in github wikis
     };
 
 
