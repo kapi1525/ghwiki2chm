@@ -2,6 +2,7 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <regex>
 
 #include "chm.hpp"
 #include "maddy/parser.h"
@@ -53,42 +54,48 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
 void chm::project::convert_source_files() {
     for (auto &&file_path : files) {
-        if(file_path.extension() == ".md") {
-            // md to html parser
-            static maddy::Parser parser;
+        if(file_path.extension() != ".md") {
+            continue;
+        }
 
-            std::cout << "Converting: " << std::filesystem::relative(file_path) << " ---> ";
-            std::cout.flush();
+        // md to html parser
+        static maddy::Parser parser;
+        std::string html_out;
 
-            // Open md file for reading.
-            std::fstream file_stream(file_path, std::ios_base::in);
-            std::string html_out = parser.Parse(file_stream);
+        std::cout << "Converting: " << std::filesystem::relative(file_path) << std::endl;
 
-            file_stream.close();
+        {
+            std::ifstream md_file(file_path);
+            html_out = parser.Parse(md_file);
+        }
 
-            file_path = temp_path / std::filesystem::relative(file_path, root_path).replace_extension(".html");
-            std::filesystem::create_directories(std::filesystem::absolute(file_path).remove_filename());
+        scan_html_for_dependencies(html_out);
 
-            file_stream.open(file_path, std::ios_base::out);
+        // Update the path
+        file_path = temp_path / std::filesystem::relative(file_path, root_path).replace_extension(".html");
+        std::filesystem::create_directories(std::filesystem::absolute(file_path).remove_filename());
+
+        {
+            std::ofstream html_file(file_path);
             // html head body tags are required, chmcmd crashes if they are not present.
             // TODO: Custom html style templates
-            file_stream << "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body>\n";
-            file_stream << html_out;
-            file_stream << "\n</body></html>";
-            file_stream.close();
-
-            std::cout << std::filesystem::relative(file_path) << std::endl;
+            html_file << "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body>";
+            html_file << html_out;
+            html_file << "</body></html>";
         }
-        else {
-            std::cout << "Copying: " << std::filesystem::relative(file_path) << " ---> ";
-            std::cout.flush();
+    }
 
-            auto new_path = temp_path / std::filesystem::relative(file_path);
-            std::filesystem::copy_file(file_path, new_path);
-
-            file_path = new_path;
-            std::cout << file_path.filename() << std::endl;
+    for (auto &&file_path : files) {
+        if(file_path.extension() == ".html") {
+            continue;
         }
+
+        std::cout << "Copying: " << std::filesystem::relative(file_path) << std::endl;
+
+        auto new_path = temp_path / std::filesystem::relative(file_path);
+        std::filesystem::copy_file(file_path, new_path);
+
+        file_path = new_path;
     }
 }
 
@@ -97,13 +104,16 @@ void chm::project::convert_source_files() {
 // TODO: Scan generated html files for header tags
 void chm::project::create_default_toc() {
     for (auto &&file : files) {
+        if(file.extension() != ".html") {
+            continue;
+        }
         toc.push_back({file.filename().string(), &file, {}});
     }
 }
 
 
 
-void chm::project::create_project_files() {
+void chm::project::generate_project_files() {
     std::ofstream file_stream;
 
     // .gitihnore
@@ -219,4 +229,28 @@ std::string chm::project::to_hhc(toc_item& item) {
     temp += "</UL>\n";
 
     return temp;
+}
+
+
+
+void chm::project::scan_html_for_dependencies(std::string& html) {
+    std::regex img_tag_test("<img *src=\"(.*?)\" *(alt=\"(.*?)\")?\\/>"); // 1 group - image url, 3 group alt text.
+    std::regex web_link_test("(http|https)://.*\\..*");
+
+    auto begin = std::sregex_iterator(html.begin(), html.end(), img_tag_test);
+    auto end = std::sregex_iterator();
+
+    for (std::sregex_iterator i = begin; i != end; ++i) {
+        std::string url = (*i)[1];
+
+        bool is_web_link = std::regex_match(url, web_link_test);
+
+        // If local add the file to project.
+        if(!is_web_link && std::filesystem::exists(root_path / url)) {
+            std::cout << url << std::endl;
+            files.push_back(root_path / url);
+        }
+
+        // TODO: Download images from the web
+    }
 }

@@ -98,13 +98,14 @@ namespace chm {
         // create a project config automaticaly from md files and _Sidebar.
         void create_from_ghwiki(std::filesystem::path default_file);
 
-        void convert_source_files();    // Copy or covert project source files to temp dir
-        // void scan_html();               // Scan generated html files for dependencies (images, js files) and include them into the project
-        void create_default_toc();      // Create toc by looking for header tags in generated html
-        void create_project_files();    // Create .hhc .hhp
+        void convert_source_files();        // Copy or covert project source files to temp dir
+
+        void create_default_toc();          // Create toc by looking for header tags in generated html
+        void generate_project_files();      // Create .hhc .hhp
 
     private:
         std::string to_hhc(toc_item& item);
+        void scan_html_for_dependencies(std::string& html); // Looks for dependencies like images and includes them into the project
     };
 
 
