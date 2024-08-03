@@ -92,7 +92,7 @@ namespace chm {
         std::filesystem::path root_path, temp_path, out_file;
         std::filesystem::path* default_file_link = nullptr;
         std::string title = "test";
-        std::deque<std::filesystem::path> files;
+        std::deque<std::filesystem::path> source_files;
         table_of_contents toc;
 
         // create a project config automaticaly from md files and _Sidebar.
@@ -104,9 +104,12 @@ namespace chm {
         void generate_project_files();      // Create .hhc .hhp
 
     private:
+        std::deque<std::filesystem::path> files_to_compile;
+
         std::string to_hhc(toc_item& item);
-        void scan_html_for_dependencies(std::string& html); // Looks for dependencies like images and includes them into the project
-        void update_html_headings(std::string& html);       // Update heading tags (<h1>) to include id like in github wikis
+        void scan_html_for_local_dependencies(const std::string& html); // Looks local for dependencies like images and includes them into the project
+        void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded
+        void update_html_headings(std::string& html);               // Update heading tags (<h1>) to include id like in github wikis
     };
 
 

@@ -27,77 +27,85 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
         // Add compatible file types to project
         if(file.extension() == ".md") {
-            files.push_back(file);
+            source_files.push_back(file);
         }
         else if(file.extension() == ".html") {
-            files.push_back(file);
+            source_files.push_back(file);
         }
     }
 
     if(!default_file.empty()) {
-        for (auto &&f : files) {
+        for (auto &&f : source_files) {
             if(f == default_file) {
                 default_file_link = &f;
+                break;
             }
         }
     }
 
-    if(files.size() == 0) {
+    if(source_files.size() == 0) {
         return;
     }
 
     if(!default_file_link) {
-        default_file_link = &files[0];
+        default_file_link = &source_files[0];
+        
+        for (auto &&f : source_files) {
+            if(f.filename() == "Home.md") {
+                default_file_link = &f;
+                break;
+            }
+        }
     }
 }
 
 
 
 void chm::project::convert_source_files() {
-    for (auto &&file_path : files) {
-        if(file_path.extension() != ".md") {
-            continue;
+    for (const auto& source_file_path : source_files) {
+        if(source_file_path.extension() == ".md") {
+            // md to html parser
+            static maddy::Parser parser;
+            std::string html_out;
+
+            std::cout << "Converting: " << std::filesystem::relative(source_file_path) << std::endl;
+
+            {
+                std::ifstream md_file(source_file_path);
+                html_out = parser.Parse(md_file);
+            }
+
+            scan_html_for_local_dependencies(html_out);
+            update_html_headings(html_out);
+
+            // Update the path
+            auto new_file_path = temp_path / std::filesystem::relative(source_file_path, root_path).replace_extension(".html");
+            std::filesystem::create_directories(std::filesystem::absolute(new_file_path).remove_filename());
+
+            {
+                std::ofstream html_file(new_file_path);
+                // html head body tags are required, chmcmd crashes if they are not present.
+                // TODO: Custom html style templates
+                html_file << "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body>";
+                html_file << html_out;
+                html_file << "</body></html>";
+            }
+
+            files_to_compile.push_back(new_file_path);
+
+            if(default_file_link && *default_file_link == source_file_path) {
+                default_file_link = &files_to_compile.back();
+            }
+        }
+        else {
+            std::cout << "Copying: " << std::filesystem::relative(source_file_path) << std::endl;
+
+            auto new_file_path = temp_path / std::filesystem::relative(source_file_path);
+            std::filesystem::copy_file(source_file_path, new_file_path, std::filesystem::copy_options::overwrite_existing);
+
+            files_to_compile.push_back(new_file_path);
         }
 
-        // md to html parser
-        static maddy::Parser parser;
-        std::string html_out;
-
-        std::cout << "Converting: " << std::filesystem::relative(file_path) << std::endl;
-
-        {
-            std::ifstream md_file(file_path);
-            html_out = parser.Parse(md_file);
-        }
-
-        scan_html_for_dependencies(html_out);
-        update_html_headings(html_out);
-
-        // Update the path
-        file_path = temp_path / std::filesystem::relative(file_path, root_path).replace_extension(".html");
-        std::filesystem::create_directories(std::filesystem::absolute(file_path).remove_filename());
-
-        {
-            std::ofstream html_file(file_path);
-            // html head body tags are required, chmcmd crashes if they are not present.
-            // TODO: Custom html style templates
-            html_file << "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body>";
-            html_file << html_out;
-            html_file << "</body></html>";
-        }
-    }
-
-    for (auto &&file_path : files) {
-        if(file_path.extension() == ".html") {
-            continue;
-        }
-
-        std::cout << "Copying: " << std::filesystem::relative(file_path) << std::endl;
-
-        auto new_path = temp_path / std::filesystem::relative(file_path);
-        std::filesystem::copy_file(file_path, new_path, std::filesystem::copy_options::overwrite_existing);
-
-        file_path = new_path;
     }
 }
 
@@ -105,7 +113,7 @@ void chm::project::convert_source_files() {
 
 // TODO: Scan generated html files for header tags
 void chm::project::create_default_toc() {
-    for (auto &&file : files) {
+    for (auto &&file : files_to_compile) {
         if(file.extension() != ".html") {
             continue;
         }
@@ -169,7 +177,7 @@ void chm::project::generate_project_files() {
     file_stream << "0\n";                                                       // idk
 
     file_stream << "[FILES]\n";
-    for (auto &&f : files) {
+    for (auto &&f : files_to_compile) {
         file_stream << std::filesystem::relative(f, temp_path).string() << "\n";
     }
 
@@ -235,7 +243,7 @@ std::string chm::project::to_hhc(toc_item& item) {
 
 
 
-void chm::project::scan_html_for_dependencies(std::string& html) {
+void chm::project::scan_html_for_local_dependencies(const std::string& html) {
     std::regex img_tag_test("<img *src=\"(.*?)\" *(alt=\"(.*?)\")?\\/>"); // 1 group - image url, 3 group alt text.
     std::regex web_link_test("(http|https)://.*\\..*");
 
@@ -249,12 +257,16 @@ void chm::project::scan_html_for_dependencies(std::string& html) {
 
         // If local add the file to project.
         if(!is_web_link && std::filesystem::exists(root_path / url)) {
-            files.push_back(root_path / url);
+            files_to_compile.push_back(root_path / url);
         }
 
-        // TODO: Download images from the web
     }
 }
+
+void chm::project::scan_html_for_remote_dependencies(std::string& html) {
+    // TODO: Download images from the web
+}
+
 
 void chm::project::update_html_headings(std::string& html) {
     std::vector<std::regex> heading_tag_tests = {
