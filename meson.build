@@ -10,7 +10,13 @@ project(
 
 deps = [
     dependency('threads'),
-    import('cmake').subproject('maddy').dependency('maddy')
+    import('cmake').subproject('maddy').dependency('maddy'),
+    subproject(
+        'curl',
+        default_options: [
+            'tests=disabled',
+            'unittests=disabled',
+        ]).get_variable('curl_dep'),
 ]
 
 ghwiki2chm = executable(

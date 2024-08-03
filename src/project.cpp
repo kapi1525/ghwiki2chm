@@ -5,6 +5,8 @@
 #include <regex>
 #include <cctype>
 
+#include <curl/curl.h>
+
 #include "chm.hpp"
 #include "maddy/parser.h"
 #include "chm.hpp"
@@ -49,7 +51,7 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
     if(!default_file_link) {
         default_file_link = &source_files[0];
-        
+
         for (auto &&f : source_files) {
             if(f.filename() == "Home.md") {
                 default_file_link = &f;
@@ -76,6 +78,7 @@ void chm::project::convert_source_files() {
             }
 
             scan_html_for_local_dependencies(html_out);
+            scan_html_for_remote_dependencies(html_out);
             update_html_headings(html_out);
 
             // Update the path
@@ -263,8 +266,70 @@ void chm::project::scan_html_for_local_dependencies(const std::string& html) {
     }
 }
 
+
+// FIXME: This is ugly as f...
 void chm::project::scan_html_for_remote_dependencies(std::string& html) {
-    // TODO: Download images from the web
+    std::regex img_tag_test("<img *src=\"(.*?)\"");
+    std::regex web_link_test("(http|https)://.*\\..*?/(.+\\..+)");
+
+    std::smatch match;
+    size_t i = 0;
+    std::string temp = html;
+
+    while (std::regex_search(temp, match, img_tag_test)) {
+        std::string url = match[1];
+
+        std::smatch link_match;
+        if(std::regex_match(url, link_match, web_link_test)) {
+            std::cout << "Downloading: \"" << url << "\"" << std::endl;
+
+            std::filesystem::path target_filepath = temp_path / link_match[2].str();
+            std::filesystem::create_directories(std::filesystem::absolute(target_filepath).remove_filename());
+
+            FILE* file = fopen(target_filepath.c_str(), "wb");
+
+            if(!file) {
+                goto defer;
+            }
+            // std::ofstream file(temp_path / target_filename);
+            CURL* curl = curl_easy_init();
+
+            if(!curl) {
+                goto defer;
+            }
+
+            CURLcode res;
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nullptr);
+            // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+            res = curl_easy_perform(curl);
+
+            if(res) {
+                std::cout << res << std::endl;
+            }
+
+            fclose(file);
+
+            curl_easy_cleanup(curl);
+
+            std::string temp = "<img src=";
+            temp += std::filesystem::relative(target_filepath, temp_path);
+            html.replace(i + match.position(), match.length(), temp);
+
+            files_to_compile.push_back(target_filepath);
+
+            i -= match.length();
+            i += temp.length();
+        }
+
+        defer:
+        i += match.position() + match.length();
+        temp = html.substr(i);
+    }
 }
 
 
