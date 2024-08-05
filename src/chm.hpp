@@ -12,7 +12,7 @@
 namespace chm {
 
     // https://www.nongnu.org/chmspec/latest/INI.html#HHP_WINDOWS
-    enum navigation_window_style : uint32_t {
+    enum navigation_window_style : std::uint32_t {
         auto_hide_sidebar       = 0x00000001, // Automatically hide/show tri-pane window: when the help window has focus the navigation pane is visible, otherwise it is hidden.
         always_on_top           = 0x00000002, // Keep the help window on top.
         no_titlebar             = 0x00000004, // No title bar
@@ -46,7 +46,7 @@ namespace chm {
         default_style = (tri_pane_window | sync_sidebar_with_topic | search_tab | html_title_in_titlebar | resizable | margin),
     };
 
-    enum toolbar_buttons : uint32_t {
+    enum toolbar_buttons : std::uint32_t {
         hide_show               = 0x00000002, // Hide/Show button hides/shows the navigation pane.
         back                    = 0x00000004, // Back button.
         forward                 = 0x00000008, // Forward button.
@@ -125,7 +125,6 @@ namespace chm {
     };
 
 
-    std::filesystem::path find_executable(std::string command);
     const compiler_info* find_available_compiler();
     bool is_compiler_valid(const compiler_info* compiler);
     bool compile(project* proj, const compiler_info* compiler);

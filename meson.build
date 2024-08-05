@@ -25,5 +25,6 @@ ghwiki2chm = executable(
     'src/args.cpp',
     'src/project.cpp',
     'src/compiler.cpp',
+    'src/utils.cpp',
     dependencies: deps,
 )

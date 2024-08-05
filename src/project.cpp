@@ -1,15 +1,12 @@
 #include <iostream>
-#include <string>
-#include <filesystem>
 #include <fstream>
 #include <regex>
+#include <cstdio>
 #include <cctype>
-
-#include <curl/curl.h>
 
 #include "chm.hpp"
 #include "maddy/parser.h"
-#include "chm.hpp"
+#include <curl/curl.h>
 
 
 
@@ -273,7 +270,7 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
     std::regex web_link_test("(http|https)://.*\\..*?/(.+\\..+)");
 
     std::smatch match;
-    size_t i = 0;
+    std::size_t i = 0;
     std::string temp = html;
 
     while (std::regex_search(temp, match, img_tag_test)) {
@@ -286,7 +283,7 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
             std::filesystem::path target_filepath = temp_path / link_match[2].str();
             std::filesystem::create_directories(std::filesystem::absolute(target_filepath).remove_filename());
 
-            FILE* file = fopen(target_filepath.c_str(), "wb");
+            FILE* file = std::fopen(target_filepath.c_str(), "wb");
 
             if(!file) {
                 goto defer;
@@ -312,7 +309,7 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
                 std::cout << res << std::endl;
             }
 
-            fclose(file);
+            std::fclose(file);
 
             curl_easy_cleanup(curl);
 
