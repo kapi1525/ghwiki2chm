@@ -93,8 +93,20 @@ void chm::project::convert_source_files() {
 
             files_to_compile.push_back(new_file_path);
 
+            bool is_default_file = false;
             if(default_file_link && *default_file_link == source_file_path) {
                 default_file_link = &files_to_compile.back();
+                is_default_file = true;
+            }
+
+            if(auto_toc) {
+                auto toc_entry = create_toc_entries(&files_to_compile.back(), html_out);
+                if(is_default_file) {
+                    // Default file shoud be first in toc
+                    toc.push_front(toc_entry);
+                } else {
+                    toc.push_back(toc_entry);
+                }
             }
         }
         else {
@@ -106,18 +118,6 @@ void chm::project::convert_source_files() {
             files_to_compile.push_back(new_file_path);
         }
 
-    }
-}
-
-
-
-// TODO: Scan generated html files for header tags
-void chm::project::create_default_toc() {
-    for (auto &&file : files_to_compile) {
-        if(file.extension() != ".html") {
-            continue;
-        }
-        toc.push_back({file.filename().string(), &file, {}});
     }
 }
 
@@ -221,7 +221,11 @@ std::string chm::project::to_hhc(toc_item& item) {
     temp += "<param name=\"Name\" value=\"" + item.name + "\">\n";
 
     if(item.file_link) {
-        temp += "<param name=\"Local\" value=\"" + std::filesystem::relative(*item.file_link, temp_path).string() + "\">\n";
+        std::string link = std::filesystem::relative(*item.file_link, temp_path).string();
+        if(!item.target_fragment.empty()) {
+            link += "#" + item.target_fragment;
+        }
+        temp += "<param name=\"Local\" value=\"" + link + "\">\n";
     }
 
     temp += "</OBJECT>\n";
@@ -244,7 +248,7 @@ std::string chm::project::to_hhc(toc_item& item) {
 
 
 void chm::project::scan_html_for_local_dependencies(const std::string& html) {
-    std::regex img_tag_test("<img *src=\"(.*?)\" *(alt=\"(.*?)\")?\\/>"); // 1 group - image url, 3 group alt text.
+    std::regex img_tag_test("<img +src=\"(.*?)\" *(alt=\"(.*?)\")?\\/>"); // 1 group - image url, 3 group alt text.
     std::regex web_link_test("(http|https)://.*\\..*");
 
     auto begin = std::sregex_iterator(html.begin(), html.end(), img_tag_test);
@@ -266,7 +270,7 @@ void chm::project::scan_html_for_local_dependencies(const std::string& html) {
 
 // FIXME: This is ugly as f...
 void chm::project::scan_html_for_remote_dependencies(std::string& html) {
-    std::regex img_tag_test("<img *src=\"(.*?)\"");
+    std::regex img_tag_test("<img +src=\"(.*?)\"");
     std::regex web_link_test("(http|https)://.*\\..*?/(.+\\..+)");
 
     std::smatch match;
@@ -370,4 +374,31 @@ void chm::project::update_html_headings(std::string& html) {
 
         // html = std::regex_replace(html, regex, "<$1 id=\"\\L$2\">$2</$3>");
     }
+}
+
+
+
+chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, const std::string& html) {
+    std::regex img_tag_test("<h[1-6] +id=\"(.+?)\">(.+?)</h[1-6]>");
+
+    auto begin = std::sregex_iterator(html.begin(), html.end(), img_tag_test);
+    auto end = std::sregex_iterator();
+
+    toc_item toc_entry;
+
+    toc_entry.name = file->filename().replace_extension("");
+    toc_entry.file_link = file;
+
+    for (std::sregex_iterator i = begin; i != end; ++i) {
+        std::string heading_id = (*i)[1];
+        std::string heading_name = (*i)[2];
+
+        toc_entry.children.push_back({.name = heading_name, .file_link = file, .target_fragment = heading_id});
+    }
+
+    if(toc_entry.children.size() == 1) {
+        toc_entry.children.clear();
+    }
+
+    return toc_entry;
 }

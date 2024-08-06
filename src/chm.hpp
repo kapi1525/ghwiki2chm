@@ -78,10 +78,11 @@ namespace chm {
     struct toc_item {
         std::string name;
         std::filesystem::path* file_link = nullptr;
+        std::string target_fragment;
         std::vector<toc_item> children;
     };
 
-    using table_of_contents = std::vector<toc_item>;
+    using table_of_contents = std::deque<toc_item>;
 
 
     class project {
@@ -94,13 +95,12 @@ namespace chm {
         std::string title = "test";
         std::deque<std::filesystem::path> source_files;
         table_of_contents toc;
+        bool auto_toc = true;
 
         // create a project config automaticaly from md files and _Sidebar.
         void create_from_ghwiki(std::filesystem::path default_file);
 
         void convert_source_files();        // Copy or covert project source files to temp dir
-
-        void create_default_toc();          // Create toc by looking for header tags in generated html
         void generate_project_files();      // Create .hhc .hhp
 
     private:
@@ -109,7 +109,8 @@ namespace chm {
         std::string to_hhc(toc_item& item);
         void scan_html_for_local_dependencies(const std::string& html); // Looks local for dependencies like images and includes them into the project
         void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded
-        void update_html_headings(std::string& html);               // Update heading tags (<h1>) to include id like in github wikis
+        void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
+        toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
     };
 
 

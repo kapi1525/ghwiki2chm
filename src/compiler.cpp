@@ -66,5 +66,7 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
         }, i);
     }
 
-    return utils::run_process(utils::find_executable(compiler->executable), args);
+    int status = utils::run_process(utils::find_executable(compiler->executable), args, proj->temp_path);
+    std::printf("Compiler exited with exit code: %i.\n", status);
+    return status == 0;
 }

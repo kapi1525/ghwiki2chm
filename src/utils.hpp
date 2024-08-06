@@ -14,5 +14,5 @@
 
 namespace utils {
     std::filesystem::path find_executable(std::string command);
-    bool run_process(std::filesystem::path executable, std::vector<std::string> args);
+    int run_process(std::filesystem::path executable, std::vector<std::string> args, std::filesystem::path process_current_path = std::filesystem::current_path());
 }

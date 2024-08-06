@@ -51,7 +51,7 @@ std::filesystem::path utils::find_executable(std::string command) {
 
 
 
-bool utils::run_process(std::filesystem::path executable, std::vector<std::string> args) {
+int utils::run_process(std::filesystem::path executable, std::vector<std::string> args, std::filesystem::path process_current_path) {
 #ifdef PLATFORM_WINDWS
     // TODO
 
@@ -65,23 +65,26 @@ bool utils::run_process(std::filesystem::path executable, std::vector<std::strin
         argv[i] = args[i - 1].c_str();
     }
 
-    pid_t pid;
-    if(posix_spawn(&pid, executable.c_str(), nullptr, nullptr, (char**)argv.get(), environ)) {
-        perror("posix_spawn() failed");
-        return false;
+    pid_t pid = fork();
+    if(pid == 0) {
+        // child process
+        std::filesystem::current_path(process_current_path);
+        execv(executable.c_str(), (char**)argv.get());
+        perror("execv() failed");
+        exit(-1);
+    } else if(pid < 0) {
+        perror("fork() failed");
+        return -1;
     }
 
-    int status;
+    int status = -1;
     if(waitpid(pid, &status, 0) != pid) {
         perror("waitpid() failed");
-        return false;
     }
 
-    if(status == 0) {
-        return true;
-    }
+    return status;
 
 #endif
 
-    return false;
+    return -1;
 }

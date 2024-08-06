@@ -76,7 +76,6 @@ int main(int argc, const char *argv[]) {
 
     proj.create_from_ghwiki(default_file);
     proj.convert_source_files();
-    proj.create_default_toc();
     proj.generate_project_files();
 
     auto* compiler = chm::find_available_compiler();
