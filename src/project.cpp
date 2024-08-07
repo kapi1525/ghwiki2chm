@@ -335,45 +335,36 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
 
 
 void chm::project::update_html_headings(std::string& html) {
-    std::vector<std::regex> heading_tag_tests = {
-        std::regex("<(h1)>(.*?)<\\/(h1)>"),
-        std::regex("<(h2)>(.*?)<\\/(h2)>"),
-        std::regex("<(h3)>(.*?)<\\/(h3)>"),
-        std::regex("<(h4)>(.*?)<\\/(h4)>"),
-        std::regex("<(h5)>(.*?)<\\/(h5)>"),
-        std::regex("<(h6)>(.*?)<\\/(h6)>"),
-    };
+    std::regex heading_tag_test("<(h[1-6])>(.*?)<\\/(h[1-6]>)");
 
-    for (auto &&regex : heading_tag_tests) {
-        while (true) {
-            std::smatch match;
-            if(!std::regex_search(html, match, regex)) {
-                break;
-            }
-
-            std::string new_tag = "<";
-            new_tag += match[1];
-            new_tag += " id=\"";
-
-            for (auto c : match[2].str()) {
-                if(std::isspace(c)) {
-                    new_tag += '-';
-                }
-                if(std::isalnum(c)) {
-                    new_tag += std::tolower(c);
-                }
-            }
-
-            new_tag += "\">";
-            new_tag += match[2];
-            new_tag += "</";
-            new_tag += match[3];
-            new_tag += ">";
-            html.replace(match.position(), match.length(), new_tag);
+    while (true) {
+        std::smatch match;
+        if(!std::regex_search(html, match, heading_tag_test)) {
+            break;
         }
 
-        // html = std::regex_replace(html, regex, "<$1 id=\"\\L$2\">$2</$3>");
+        std::string new_tag = "<";
+        new_tag += match[1];
+        new_tag += " id=\"";
+
+        for (auto c : match[2].str()) {
+            if(std::isspace(c)) {
+                new_tag += '-';
+            }
+            if(std::isalnum(c)) {
+                new_tag += std::tolower(c);
+            }
+        }
+
+        new_tag += "\">";
+        new_tag += match[2];
+        new_tag += "</";
+        new_tag += match[3];
+        new_tag += ">";
+        html.replace(match.position(), match.length(), new_tag);
     }
+
+    // html = std::regex_replace(html, regex, "<$1 id=\"\\L$2\">$2</$3>");
 }
 
 
