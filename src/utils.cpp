@@ -2,6 +2,7 @@
 
 #include <string_view>
 #include <memory>
+#include <regex>
 #include <cstdlib>          // getenv
 
 #ifdef PLATFORM_POSIX
@@ -87,4 +88,75 @@ int utils::run_process(std::filesystem::path executable, std::vector<std::string
 #endif
 
     return -1;
+}
+
+
+
+bool utils::parse_url(std::string& str, utils::url* out) {
+    // i have sinned
+    // FIXME: This doesnt support both # and ? in one link, but i dont care i dont want to touch this mess any more.
+    // original un-esacaped ^(?:(.+?):\/\/)?(?:(.+?)(?::(.+?))?@)?([^./]+\..+?)?(?:\/(?:(.+?)(?:$|#(.*)|\?(.*)))|$)
+    // group 1 - protocol, 2 - login, 3 - password, 4 - host, 5 - resource path, 6 - document fragment, 7 - query
+    std::regex main_regex("^(?:(.+?):\\/\\/)?(?:(.+?)(?::(.+?))?@)?([^./]+\\..+?)?(?:\\/(?:(.+?)(?:$|#(.*)|\\?(.*)))|$)");
+    std::regex file_with_fragment_regex("^(.*?)(?:#(.+))?$");
+
+    if(!out || str.empty()) {
+        return false;
+    }
+
+    // if the url doesnt match the regex, assume its just a path to local resource.
+    std::smatch match;
+    if(std::regex_match(str, match, main_regex)) {
+        out->protocol       = match[1];
+        out->login          = match[2];
+        out->password       = match[3];
+        out->host           = match[4];
+        out->resource_path  = match[5];
+        out->fragment       = match[6];
+        out->query          = match[7];
+    } else if(std::regex_match(str, match, file_with_fragment_regex)) {
+        out->resource_path = match[1];
+        out->fragment = match[2];
+    } else {
+        out->resource_path = str;
+    }
+
+    return true;
+}
+
+std::string utils::to_string(url& in) {
+    std::string temp;
+    if(!in.protocol.empty()) {
+        temp += in.protocol;
+        temp += "://";
+    }
+    if(!in.login.empty()) {
+        temp += in.login;
+        if(!in.password.empty()) {
+            temp += ":";
+            temp += in.password;
+        }
+        temp += "@";
+    }
+    if(!in.host.empty()) {
+        temp += in.host;
+    }
+    if(!in.port.empty()) {
+        temp += ":";
+        temp += in.port;
+    }
+    if(!in.resource_path.empty()) {
+        temp += "/";
+        temp += in.resource_path;
+    }
+    if(!in.query.empty()) {
+        temp += "?";
+        temp += in.query;
+    }
+    if(!in.fragment.empty()) {
+        temp += "#";
+        temp += in.fragment;
+    }
+
+    return temp;
 }

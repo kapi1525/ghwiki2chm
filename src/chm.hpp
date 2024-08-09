@@ -110,6 +110,7 @@ namespace chm {
         void scan_html_for_local_dependencies(const std::string& html); // Looks local for dependencies like images and includes them into the project
         void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded
         void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
+        void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
         toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
     };
 

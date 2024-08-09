@@ -4,9 +4,11 @@
 #include <cstdio>
 #include <cctype>
 
-#include "chm.hpp"
 #include "maddy/parser.h"
 #include <curl/curl.h>
+
+#include "chm.hpp"
+#include "utils.hpp"
 
 
 
@@ -77,6 +79,7 @@ void chm::project::convert_source_files() {
             scan_html_for_local_dependencies(html_out);
             scan_html_for_remote_dependencies(html_out);
             update_html_headings(html_out);
+            update_html_links(html_out);
 
             // Update the path
             auto new_file_path = temp_path / std::filesystem::relative(source_file_path, root_path).replace_extension(".html");
@@ -335,7 +338,7 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
 
 
 void chm::project::update_html_headings(std::string& html) {
-    std::regex heading_tag_test("<(h[1-6])>(.*?)<\\/(h[1-6]>)");
+    std::regex heading_tag_test("<(h[1-6])>(.*?)(<\\/h[1-6]>)");
 
     while (true) {
         std::smatch match;
@@ -358,9 +361,7 @@ void chm::project::update_html_headings(std::string& html) {
 
         new_tag += "\">";
         new_tag += match[2];
-        new_tag += "</";
         new_tag += match[3];
-        new_tag += ">";
         html.replace(match.position(), match.length(), new_tag);
     }
 
@@ -369,10 +370,60 @@ void chm::project::update_html_headings(std::string& html) {
 
 
 
-chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, const std::string& html) {
-    std::regex img_tag_test("<h[1-6] +id=\"(.+?)\">(.+?)</h[1-6]>");
+void chm::project::update_html_links(std::string& html) {
+    std::regex link_tag_test("(<a +href=\")(.*?)(\">)");
 
-    auto begin = std::sregex_iterator(html.begin(), html.end(), img_tag_test);
+    // std::regex has_file_extension_test(".+\\..+");
+    // std::regex outdated_file_extension_test("(.md)");
+
+    std::string temp = html;
+
+    std::smatch match;
+    for (size_t i = 0; i < html.size(); i++) {
+        temp = html.substr(i);
+        if(!std::regex_search(temp, match, link_tag_test)) {
+            break;
+        }
+
+        std::string url_str = match[2];
+        // std::cout << url << std::endl;
+
+        utils::url url_parsed;
+        if(!utils::parse_url(url_str, &url_parsed)) {
+            continue;
+        }
+
+        if(url_parsed.host.empty() && !url_parsed.resource_path.empty()) {
+            std::filesystem::path resource_path = root_path / url_parsed.resource_path;
+
+            for (auto &&file : source_files) {
+                if(!resource_path.has_extension() && std::filesystem::path(resource_path).replace_extension(".md") == file) {
+                    resource_path.replace_extension(".html");
+                    break;
+                }
+            }
+
+            url_parsed.resource_path = std::filesystem::relative(resource_path, root_path).string();
+        }
+
+        std::string new_link_tag = match[1];
+        new_link_tag += utils::to_string(url_parsed);
+        new_link_tag += match[3];
+
+        std::cout << "  new url: " << new_link_tag << std::endl;
+
+        html.replace(i + match.position(), match.length(), new_link_tag);
+
+        i += match.position() + new_link_tag.length();
+    }
+}
+
+
+
+chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, const std::string& html) {
+    std::regex heading_tag_test("<h[1-6] +id=\"(.+?)\">(.+?)</h[1-6]>");
+
+    auto begin = std::sregex_iterator(html.begin(), html.end(), heading_tag_test);
     auto end = std::sregex_iterator();
 
     toc_item toc_entry;
