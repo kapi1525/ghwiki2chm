@@ -40,10 +40,12 @@ jobs:
           meson setup bin --buildtype release
           meson compile -C bin
 
+      # FIXME
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghwiki2chm-${{ runner.os }}
           path: |
             bin/ghwiki2chm
+            bin/ghwiki2chm.exe
           if-no-files-found: error
