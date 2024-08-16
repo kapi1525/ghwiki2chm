@@ -5,6 +5,13 @@
 #include <regex>
 #include <cstdlib>          // getenv
 
+#ifdef PLATFORM_WINDOWS
+    #define WIN32_LEAN_AND_MEAN
+    #define STRICT
+    #define NOMINMAX
+    #include <windows.h>
+#endif
+
 #ifdef PLATFORM_POSIX
     #include <spawn.h>      // posic_spawn
     #include <unistd.h>     // environ
@@ -15,6 +22,7 @@
 
 // Look for executable in PATH
 // Made for posix compatible systems but might work on windows
+// FIXME: Windows
 std::filesystem::path utils::find_executable(std::string command) {
     if(std::filesystem::exists(command)) {
         return std::filesystem::absolute(command);
@@ -54,7 +62,44 @@ std::filesystem::path utils::find_executable(std::string command) {
 
 int utils::run_process(std::filesystem::path executable, std::vector<std::string> args, std::filesystem::path process_current_path) {
 #ifdef PLATFORM_WINDWS
-    // TODO
+    std::string temp_cmd;
+
+    for (auto &&arg : args) {
+        auto escape_quotes = [](std::string str) -> std::string {
+            std::string temp;
+            for (auto& c : str) {
+                if(c == '"') {
+                    temp += '\\';
+                }
+                temp += c;
+            }
+            return temp;
+        };
+
+        temp_cmd += "\"";
+        temp_cmd += escape_quotes(arg);
+        temp_cmd += "\"";
+    }
+
+    std::unique_ptr<char[]> command_line = std::make_unique<char[]>(temp_cmd.length() + 1); // +1 for null terminator
+
+    STARTUPINFO si = {};
+    PROCESS_INFORMATION pi = {};
+
+    si.cb = sizeof(si);
+
+    if(!CreateProcessA(executable.c_str(), command_line, nullptr, nullptr, false, 0, nullptr, process_current_path.c_str(), &si, &pi)) {
+        printf( "CreateProcess failed: %d.\n", GetLastError());
+        return -1;
+    }
+
+    // Wait until child process to exit
+    WaitForSingleObject( pi.hProcess, INFINITE );
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return 0;
 
 #elif defined(PLATFORM_POSIX)
     std::size_t argc = args.size() + 1;                                                 // +1 for filename

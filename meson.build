@@ -16,6 +16,7 @@ deps = [
         default_options: [
             'tests=disabled',
             'unittests=disabled',
+            'default_library=static',
         ]).get_variable('curl_dep'),
 ]
 

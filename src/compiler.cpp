@@ -11,6 +11,12 @@ const chm::compiler_info* chm::find_available_compiler() {
             "chmcmd",
             {compiler_special_arg::project_file_path, "--no-html-scan"},
         },
+        #ifdef PLATFORM_WINDOWS
+        {
+            "hhc",
+            {compiler_special_arg::project_file_path},
+        },
+        #endif
     };
 
     for (auto &&compiler : compiler_infos) {

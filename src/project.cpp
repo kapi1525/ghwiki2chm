@@ -290,7 +290,7 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
             std::filesystem::path target_filepath = temp_path / link_match[2].str();
             std::filesystem::create_directories(std::filesystem::absolute(target_filepath).remove_filename());
 
-            FILE* file = std::fopen(target_filepath.c_str(), "wb");
+            FILE* file = std::fopen(target_filepath.string().c_str(), "wb");
 
             if(!file) {
                 goto defer;
@@ -321,7 +321,7 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
             curl_easy_cleanup(curl);
 
             std::string temp = "<img src=";
-            temp += std::filesystem::relative(target_filepath, temp_path);
+            temp += std::filesystem::relative(target_filepath, temp_path).string();
             html.replace(i + match.position(), match.length(), temp);
 
             files_to_compile.push_back(target_filepath);
@@ -428,14 +428,14 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
 
     toc_item toc_entry;
 
-    toc_entry.name = file->filename().replace_extension("");
+    toc_entry.name = file->filename().replace_extension("").string();
     toc_entry.file_link = file;
 
     for (std::sregex_iterator i = begin; i != end; ++i) {
         std::string heading_id = (*i)[1];
         std::string heading_name = (*i)[2];
 
-        toc_entry.children.push_back({.name = heading_name, .file_link = file, .target_fragment = heading_id});
+        toc_entry.children.push_back({heading_name, file, heading_id});
     }
 
     if(toc_entry.children.size() == 1) {

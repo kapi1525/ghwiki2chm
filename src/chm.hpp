@@ -104,6 +104,9 @@ namespace chm {
         void generate_project_files();      // Create .hhc .hhp
 
     private:
+        // TODO: Refactor this to maybe vector of structs containing info about pages and dependencies.
+        // Maybe look first for files then figure out if they will be converted and their new names and then run conversion and or copy.
+        // Knowing the final name will allow links to be checked if they are valid during the html conversion.
         std::deque<std::filesystem::path> files_to_compile;
 
         std::string to_hhc(toc_item& item);
