@@ -30,6 +30,10 @@ std::filesystem::path utils::find_executable(std::string command) {
 
     std::string_view env_path(std::getenv("PATH"));
 
+    if(env_path.empty()) {
+        return {};
+    }
+
     for (size_t i = 0; i < env_path.size(); i++) {
         std::size_t end = env_path.find(':', i);
 
@@ -204,4 +208,13 @@ std::string utils::to_string(url& in) {
     }
 
     return temp;
+}
+
+
+
+void utils::unreachable(const std::source_location location) {
+    std::fprintf(stderr, "%s:%d:%d: Unreachable!\n", location.file_name(), location.line(), location.column());
+    std::fflush(stdout);
+    std::fflush(stderr);
+    abort();
 }

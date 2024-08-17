@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <thread>
 #include <cstdio>
 #include <cctype>
 
@@ -27,33 +28,34 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
         }
 
         // Add compatible file types to project
+        // TODO: Refactor
         if(file.extension() == ".md") {
-            source_files.push_back(file);
+            files.push_back({file});
         }
         else if(file.extension() == ".html") {
-            source_files.push_back(file);
+            files.push_back({file});
         }
     }
 
     if(!default_file.empty()) {
-        for (auto &&f : source_files) {
-            if(f == default_file) {
-                default_file_link = &f;
+        for (auto &&file : files) {
+            if(file.original == default_file) {
+                default_file_link = &file.original;
                 break;
             }
         }
     }
 
-    if(source_files.size() == 0) {
+    if(files.size() == 0) {
         return;
     }
 
     if(!default_file_link) {
-        default_file_link = &source_files[0];
+        default_file_link = &files[0].original;
 
-        for (auto &&f : source_files) {
-            if(f.filename() == "Home.md") {
-                default_file_link = &f;
+        for (auto &&file : files) {
+            if(file.original.filename() == "Home.md") {
+                default_file_link = &file.original;
                 break;
             }
         }
@@ -63,16 +65,49 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
 
 void chm::project::convert_source_files() {
-    for (const auto& source_file_path : source_files) {
-        if(source_file_path.extension() == ".md") {
+    // Determine converter
+    for (auto &&file : files) {
+        if(file.original.extension() == ".md") {
+            file.converter = conversion_type::markdown;
+            continue;
+        }
+
+        file.converter = conversion_type::copy;
+    }
+
+    // Determine target file path
+    for (auto &&file : files) {
+        switch (file.converter) {
+        case conversion_type::copy:
+            file.target = temp_path / std::filesystem::relative(file.original, root_path);
+            continue;
+
+        case conversion_type::markdown:
+            file.target = temp_path / std::filesystem::relative(file.original, root_path).replace_extension(".html");
+            continue;
+        }
+
+        utils::unreachable();
+    }
+
+    // Copy or convert files
+    for (auto &&file : files) {
+        std::filesystem::create_directories(std::filesystem::absolute(file.target).remove_filename());
+
+        switch (file.converter) {
+        case conversion_type::copy:
+            std::filesystem::copy_file(file.original, file.target, std::filesystem::copy_options::overwrite_existing);
+            continue;
+
+        case conversion_type::markdown: {
             // md to html parser
             static maddy::Parser parser;
             std::string html_out;
 
-            std::cout << "Converting: " << std::filesystem::relative(source_file_path) << std::endl;
+            std::cout << "Converting: " << std::filesystem::relative(file.original) << std::endl;
 
             {
-                std::ifstream md_file(source_file_path);
+                std::ifstream md_file(file.original);
                 html_out = parser.Parse(md_file);
             }
 
@@ -81,12 +116,8 @@ void chm::project::convert_source_files() {
             update_html_headings(html_out);
             update_html_links(html_out);
 
-            // Update the path
-            auto new_file_path = temp_path / std::filesystem::relative(source_file_path, root_path).replace_extension(".html");
-            std::filesystem::create_directories(std::filesystem::absolute(new_file_path).remove_filename());
-
             {
-                std::ofstream html_file(new_file_path);
+                std::ofstream html_file(file.target);
                 // html head body tags are required, chmcmd crashes if they are not present.
                 // TODO: Custom html style templates
                 html_file << "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body>";
@@ -94,16 +125,14 @@ void chm::project::convert_source_files() {
                 html_file << "</body></html>";
             }
 
-            files_to_compile.push_back(new_file_path);
-
             bool is_default_file = false;
-            if(default_file_link && *default_file_link == source_file_path) {
-                default_file_link = &files_to_compile.back();
+            if(default_file_link && *default_file_link == file.original) {
+                default_file_link = &file.target;
                 is_default_file = true;
             }
 
             if(auto_toc) {
-                auto toc_entry = create_toc_entries(&files_to_compile.back(), html_out);
+                auto toc_entry = create_toc_entries(&file.target, html_out);
                 if(is_default_file) {
                     // Default file shoud be first in toc
                     toc.push_front(toc_entry);
@@ -111,17 +140,38 @@ void chm::project::convert_source_files() {
                     toc.push_back(toc_entry);
                 }
             }
-        }
-        else {
-            std::cout << "Copying: " << std::filesystem::relative(source_file_path) << std::endl;
 
-            auto new_file_path = temp_path / std::filesystem::relative(source_file_path);
-            std::filesystem::copy_file(source_file_path, new_file_path, std::filesystem::copy_options::overwrite_existing);
-
-            files_to_compile.push_back(new_file_path);
+            continue; }
         }
 
+        utils::unreachable();
     }
+
+    // Download remote dependencies
+    std::mutex dependencies_deque_mutex;
+    std::vector<std::thread> download_threads;
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    std::cout << remote_dependencies.size() << " remote dependencies will be downloaded..." << std::endl;
+    for (std::uint32_t i = 0; i < std::thread::hardware_concurrency(); i++) {
+        download_threads.emplace_back(&chm::project::download_depdendencies_thread, this, std::ref(dependencies_deque_mutex));
+    }
+
+    for (auto &&thread : download_threads) {
+        thread.join();
+    }
+
+    curl_global_cleanup();
+
+    size_t downloaded_count = 0;
+    for (auto &&dependency : remote_dependencies) {
+        if(dependency.downloaded) {
+            downloaded_count++;
+        }
+    }
+
+    std::cout << "Downloaded " << downloaded_count << " files successfully" << std::endl;
 }
 
 
@@ -180,8 +230,16 @@ void chm::project::generate_project_files() {
     file_stream << "0\n";                                                       // idk
 
     file_stream << "[FILES]\n";
-    for (auto &&f : files_to_compile) {
-        file_stream << std::filesystem::relative(f, temp_path).string() << "\n";
+    for (auto &&file : files) {
+        file_stream << std::filesystem::relative(file.target, temp_path).string() << "\n";
+    }
+
+    for (auto &&file : local_dependencies) {
+        file_stream << std::filesystem::relative(file.target, temp_path).string() << "\n";
+    }
+
+    for (auto &&file : remote_dependencies) {
+        file_stream << std::filesystem::relative(file.target, temp_path).string() << "\n";
     }
 
     file_stream.close();
@@ -264,9 +322,8 @@ void chm::project::scan_html_for_local_dependencies(const std::string& html) {
 
         // If local add the file to project.
         if(!is_web_link && std::filesystem::exists(root_path / url)) {
-            files_to_compile.push_back(root_path / url);
+            local_dependencies.push_back({.original = root_path / url});
         }
-
     }
 }
 
@@ -285,52 +342,17 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
 
         std::smatch link_match;
         if(std::regex_match(url, link_match, web_link_test)) {
-            std::cout << "Downloading: \"" << url << "\"" << std::endl;
-
-            std::filesystem::path target_filepath = temp_path / link_match[2].str();
-            std::filesystem::create_directories(std::filesystem::absolute(target_filepath).remove_filename());
-
-            FILE* file = std::fopen(target_filepath.string().c_str(), "wb");
-
-            if(!file) {
-                goto defer;
-            }
-            // std::ofstream file(temp_path / target_filename);
-            CURL* curl = curl_easy_init();
-
-            if(!curl) {
-                goto defer;
-            }
-
-            CURLcode res;
-            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nullptr);
-            // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-            res = curl_easy_perform(curl);
-
-            if(res) {
-                std::cout << res << std::endl;
-            }
-
-            std::fclose(file);
-
-            curl_easy_cleanup(curl);
+            remote_dependencies.push_back({.link = url, .target = temp_path / link_match[2].str()});
+            // std::cout << "Found dependency: \"" << url << "\"" << std::endl;
 
             std::string temp = "<img src=";
-            temp += std::filesystem::relative(target_filepath, temp_path).string();
+            temp += std::filesystem::relative(remote_dependencies.back().target, temp_path).string();
             html.replace(i + match.position(), match.length(), temp);
-
-            files_to_compile.push_back(target_filepath);
 
             i -= match.length();
             i += temp.length();
         }
 
-        defer:
         i += match.position() + match.length();
         temp = html.substr(i);
     }
@@ -371,51 +393,55 @@ void chm::project::update_html_headings(std::string& html) {
 
 
 void chm::project::update_html_links(std::string& html) {
-    std::regex link_tag_test("(<a +href=\")(.*?)(\">)");
+    // FIXME
+    // std::regex link_tag_test("(<a +href=\")(.*?)(\">)");
 
-    // std::regex has_file_extension_test(".+\\..+");
-    // std::regex outdated_file_extension_test("(.md)");
+    // std::string temp = html;
 
-    std::string temp = html;
+    // std::smatch match;
+    // for (size_t i = 0; i < html.size(); i += match.position()) {
+    //     temp = html.substr(i);
+    //     if(!std::regex_search(temp, match, link_tag_test)) {
+    //         break;
+    //     }
 
-    std::smatch match;
-    for (size_t i = 0; i < html.size(); i++) {
-        temp = html.substr(i);
-        if(!std::regex_search(temp, match, link_tag_test)) {
-            break;
-        }
+    //     std::string url_str = match[2];
 
-        std::string url_str = match[2];
-        // std::cout << url << std::endl;
+    //     utils::url url_parsed;
+    //     if(!utils::parse_url(url_str, &url_parsed)) {
+    //         continue;
+    //     }
 
-        utils::url url_parsed;
-        if(!utils::parse_url(url_str, &url_parsed)) {
-            continue;
-        }
+    //     if(url_parsed.host.empty() && !url_parsed.resource_path.empty()) {
+    //         std::filesystem::path resource_path = root_path / url_parsed.resource_path;
 
-        if(url_parsed.host.empty() && !url_parsed.resource_path.empty()) {
-            std::filesystem::path resource_path = root_path / url_parsed.resource_path;
+    //         bool found_link_target = false;
+    //         for (auto &&file : files) {
+    //             if(resource_path == file.original) {
+    //                 resource_path = file.target;
+    //                 found_link_target = true;
+    //                 break;
+    //             }
+    //         }
 
-            for (auto &&file : source_files) {
-                if(!resource_path.has_extension() && std::filesystem::path(resource_path).replace_extension(".md") == file) {
-                    resource_path.replace_extension(".html");
-                    break;
-                }
-            }
+    //         if(!found_link_target) {
+    //             i += match.length();
+    //             continue;
+    //         }
 
-            url_parsed.resource_path = std::filesystem::relative(resource_path, root_path).string();
-        }
+    //         url_parsed.resource_path = std::filesystem::relative(resource_path, temp_path).string();
+    //     }
 
-        std::string new_link_tag = match[1];
-        new_link_tag += utils::to_string(url_parsed);
-        new_link_tag += match[3];
+    //     std::string new_link_tag = match[1];
+    //     new_link_tag += utils::to_string(url_parsed);
+    //     new_link_tag += match[3];
 
-        std::cout << "  new url: " << new_link_tag << std::endl;
+    //     std::cout << "  new url: " << new_link_tag << std::endl;
 
-        html.replace(i + match.position(), match.length(), new_link_tag);
+    //     html.replace(i + match.position(), match.length(), new_link_tag);
 
-        i += match.position() + new_link_tag.length();
-    }
+    //     i += new_link_tag.length();
+    // }
 }
 
 
@@ -443,4 +469,73 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
     }
 
     return toc_entry;
+}
+
+
+
+static std::size_t write_callback(char* ptr, std::size_t size, std::size_t nmemb, std::ofstream* file) {
+    std::size_t size_in_bytes = size * nmemb;
+    file->write(ptr, size_in_bytes);
+    if(!*file) {
+        return 0;
+    }
+    return size_in_bytes;
+}
+
+// Call curl_global_init before!
+void chm::project::download_depdendencies_thread(std::mutex& dependencies_deque_mutex) {
+    for (auto &&dep : remote_dependencies) {
+        {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            if(dep.downloading || dep.downloaded || dep.download_failed) {
+                continue;
+            }
+
+            dep.downloading = true;
+            std::cout << "  " << dep.link << std::endl;
+        }
+
+        // std::filesystem::path target_filepath = temp_path / link_match[2].str();
+        std::filesystem::create_directories(std::filesystem::absolute(dep.target).remove_filename());
+
+        std::ofstream file(dep.target);
+
+        if(!file) {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            dep.download_failed = true;
+            continue;
+        }
+
+        CURL* curl = curl_easy_init();
+
+        if(!curl) {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            dep.download_failed = true;
+            continue;
+        }
+
+        CURLcode res;
+        curl_easy_setopt(curl, CURLOPT_URL, dep.link.c_str());
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);       // Required for thread safety
+        // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        res = curl_easy_perform(curl);
+
+        file.close();
+
+        if(res || !file) {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            dep.download_failed = true;
+            continue;
+        }
+
+        curl_easy_cleanup(curl);
+
+        std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+        dep.downloaded = true;
+    }
 }

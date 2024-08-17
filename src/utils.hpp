@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <source_location>
 
 
 
@@ -23,4 +24,6 @@ namespace utils {
 
     bool parse_url(std::string& str, utils::url* out);
     std::string to_string(url& in);
+
+    void unreachable(const std::source_location location = std::source_location::current());
 }

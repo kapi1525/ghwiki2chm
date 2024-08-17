@@ -6,6 +6,7 @@
 #include <string>
 #include <filesystem>
 #include <variant>
+#include <mutex>
 
 
 
@@ -93,7 +94,6 @@ namespace chm {
         std::filesystem::path root_path, temp_path, out_file;
         std::filesystem::path* default_file_link = nullptr;
         std::string title = "test";
-        std::deque<std::filesystem::path> source_files;
         table_of_contents toc;
         bool auto_toc = true;
 
@@ -104,10 +104,33 @@ namespace chm {
         void generate_project_files();      // Create .hhc .hhp
 
     private:
-        // TODO: Refactor this to maybe vector of structs containing info about pages and dependencies.
-        // Maybe look first for files then figure out if they will be converted and their new names and then run conversion and or copy.
-        // Knowing the final name will allow links to be checked if they are valid during the html conversion.
-        std::deque<std::filesystem::path> files_to_compile;
+        // github supports more markup formats so potentialy others can be added in the future.
+        enum class conversion_type : std::uint32_t {
+            copy,
+            markdown,
+        };
+
+        struct project_file {
+            std::filesystem::path original; // Original file
+            std::filesystem::path target;   // File in temp path, copied or converted from supported format to html. Will be included inside chm.
+            conversion_type converter;      // What converter should be used.
+            bool converted = false;         // If true file in target path will be present.
+        };
+        std::deque<project_file> files;
+
+        // Aditional local files that should be included into the chm, like images.
+        // Images and other files should be here because files deque cant be changed during scaning for dependencies.
+        std::deque<project_file> local_dependencies;
+
+        // Files on the web that should be downloaded and included into the chm, like images.
+        struct remote_dependency {
+            std::string link;
+            std::filesystem::path target;
+            bool downloading = false;
+            bool downloaded = false;
+            bool download_failed = false;
+        };
+        std::deque<remote_dependency> remote_dependencies;
 
         std::string to_hhc(toc_item& item);
         void scan_html_for_local_dependencies(const std::string& html); // Looks local for dependencies like images and includes them into the project
@@ -115,6 +138,8 @@ namespace chm {
         void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
         void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
         toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
+
+        void download_depdendencies_thread(std::mutex& dependencies_deque_mutex);
     };
 
 
