@@ -46,4 +46,5 @@ jobs:
           name: ghwiki2chm-${{ runner.os }}
           path: |
             bin/ghwiki2chm
+            bin/ghwiki2chm.exe
           if-no-files-found: error

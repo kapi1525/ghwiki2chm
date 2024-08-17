@@ -45,8 +45,6 @@ bool chm::is_compiler_valid(const compiler_info* compiler) {
 // https://en.cppreference.com/w/cpp/utility/variant/visit
 template<class... Ts>
 struct visit_helper : Ts... { using Ts::operator()...; };
-template<class... Ts>
-visit_helper(Ts...) -> visit_helper<Ts...>;
 
 bool chm::compile(project* proj, const compiler_info* compiler) {
     std::vector<std::string> args;
