@@ -1,8 +1,8 @@
 #include <cstdio>
 #include <filesystem>
 
-#include "args.hpp"
 #include "chm.hpp"
+#include "utils.hpp"
 
 
 
@@ -38,38 +38,70 @@ int main(int argc, const char *argv[]) {
 
     std::filesystem::path default_file;
 
-    cmd_parser cmd = {
-        {
-            {'h', []() {
-                print_help();
-            }},
+    utils::cmd_parser cmd = {
+        .program_name = "ghwiki2chm",
+        .arg_definitions = {
+            {
+                'h',
+                "help",
+                [&]() {
+                    cmd.display_help_string();
+                    exit(0);
+                },
+                nullptr,
+                "Display this help message.",
+            },
+            {
+                'n',
+                "name",
+                [&](std::string param) {
+                    proj.title = param;
+                },
+                "name",
+                "Project name. will be visible in compiled chm.",
+            },
+            {
+                'r',
+                "root",
+                [&](std::string param) {
+                    proj.root_path = std::filesystem::absolute(param);
+                },
+                "directory",
+                "Project root.",
+            },
+            {
+                'd',
+                "default-page",
+                [&](std::string param) {
+                    default_file = std::filesystem::absolute(param);
+                },
+                "file",
+                "Page that will be opened when .chm file is opened.",
+            },
+            {
+                't',
+                "temp-path",
+                [&](std::string param) {
+                    proj.temp_path = std::filesystem::absolute(param);
+                },
+                "directory",
+                "Temp directory.",
+            },
+            {
+                'o',
+                "out-file",
+                [&](std::string param) {
+                    proj.out_file = std::filesystem::absolute(param);
+                },
+                "file",
+                "Output .chm file path.",
+            },
         },
-        {
-            // Project name
-            {'n', [&](std::string param) {
-                proj.title = param;
-            }},
-            // Project root path, default: .
-            {'r', [&](std::string param) {
-                proj.root_path = std::filesystem::absolute(param);
-            }},
-            // Project default file.
-            {'d', [&](std::string param) {
-                default_file = std::filesystem::absolute(param);
-            }},
-            // Temp path default: ./temp
-            {'t', [&](std::string param) {
-                proj.temp_path = std::filesystem::absolute(param);
-            }},
-            // Output chm file path
-            {'o', [&](std::string param) {
-                proj.out_file = std::filesystem::absolute(param);
-            }},
-        }
     };
 
     if(!cmd.parse(argc, argv)) {
-        print_help();
+        cmd.display_help_string();
+        return 0;
     }
 
     std::filesystem::create_directories(proj.temp_path);

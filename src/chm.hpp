@@ -114,7 +114,6 @@ namespace chm {
             std::filesystem::path original; // Original file
             std::filesystem::path target;   // File in temp path, copied or converted from supported format to html. Will be included inside chm.
             conversion_type converter;      // What converter should be used.
-            bool converted = false;         // If true file in target path will be present.
         };
         std::deque<project_file> files;
 

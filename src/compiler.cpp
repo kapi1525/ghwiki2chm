@@ -42,15 +42,11 @@ bool chm::is_compiler_valid(const compiler_info* compiler) {
 
 
 
-// https://en.cppreference.com/w/cpp/utility/variant/visit
-template<class... Ts>
-struct visit_helper : Ts... { using Ts::operator()...; };
-
 bool chm::compile(project* proj, const compiler_info* compiler) {
     std::vector<std::string> args;
 
     for (auto &&i : compiler->args) {
-        std::visit(visit_helper{
+        std::visit(utils::visit_helper{
             [](std::monostate arg) {
             },
             [&](std::string arg) {

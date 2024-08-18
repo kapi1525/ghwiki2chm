@@ -23,7 +23,6 @@ deps = [
 ghwiki2chm = executable(
     'ghwiki2chm',
     'src/main.cpp',
-    'src/args.cpp',
     'src/project.cpp',
     'src/compiler.cpp',
     'src/utils.cpp',

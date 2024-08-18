@@ -4,6 +4,7 @@
 #include <memory>
 #include <regex>
 #include <cstdlib>          // getenv
+#include <cstring>          // strlen
 
 #ifdef PLATFORM_WINDOWS
     #define WIN32_LEAN_AND_MEAN
@@ -64,7 +65,7 @@ std::filesystem::path utils::find_executable(std::string command) {
 
 
 
-int utils::run_process(std::filesystem::path executable, std::vector<std::string> args, std::filesystem::path process_current_path) {
+int utils::run_process(std::filesystem::path executable, const std::vector<std::string>& args, std::filesystem::path process_current_path) {
 #ifdef PLATFORM_WINDWS
     std::string temp_cmd;
 
@@ -217,4 +218,94 @@ void utils::unreachable(const std::source_location location) {
     std::fflush(stdout);
     std::fflush(stderr);
     abort();
+}
+
+
+
+#if 0
+    #define debug_print(...) std::printf(__VA_ARGS__)
+#else
+    #define debug_print(...)
+#endif
+
+bool utils::cmd_parser::parse(int argc, const char* argv[]) {
+    debug_print("Parsing command line...\n");
+
+    for (int i = 1; i < argc; i++) {
+        auto arg = argv[i];
+        debug_print("%s\n", arg);
+
+        if(!is_a_flag(arg)) {
+            debug_print("Not a flag.\n");
+            return false;
+        }
+
+        bool handled = false;
+        for (auto &&arg_def : arg_definitions) {
+            if((is_short_flag(arg) && arg[1] == arg_def.short_flag) || (is_long_flag(arg) && std::strcmp(arg_def.long_flag, arg+2) == 0)) {
+                std::visit(utils::visit_helper{
+                    [](std::monostate arg) {
+                        unreachable();
+                    },
+                    [&](std::function<void()> callback) {
+                        debug_print("Calling callback...\n");
+                        callback();
+                    },
+                    [&](std::function<void(std::string)> callback) {
+                        if(i + 1 < argc && !is_a_flag(argv[i + 1])) {
+                            i++;
+                            debug_print("Calling callback with \"%s\" argument...\n", argv[i]);
+                            callback(argv[i]);
+                        }
+                    },
+                }, arg_def.callback);
+                handled = true;
+                break;
+            }
+        }
+
+        if(!handled) {
+            debug_print("Unknown flag \"%s\".\n", arg);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void utils::cmd_parser::display_help_string() {
+    std::printf("Usage: %s [options]\n\n", program_name);
+    std::printf("Options:\n");
+
+    for (auto &&arg : arg_definitions) {
+        std::printf("  ");
+        if(arg.short_flag) {
+            std::printf("-%c ", arg.short_flag);
+        }
+        if(arg.long_flag) {
+            std::printf("--%s ", arg.long_flag);
+        }
+        if(arg.argument_name) {
+            std::printf("<%s> ", arg.argument_name);
+        }
+        if(arg.help_string) {
+            std::printf("%s", arg.help_string);
+        }
+        std::printf("\n");
+    }
+    
+    std::printf("\n");
+}
+
+
+bool utils::cmd_parser::is_short_flag(const char* arg) {
+    return std::strlen(arg) == 2 && arg[0] == '-' && arg[1] != '-';
+}
+
+bool utils::cmd_parser::is_long_flag(const char* arg) {
+    return std::strlen(arg) > 2 && arg[0] == '-' && arg[1] == '-';
+}
+
+bool utils::cmd_parser::is_a_flag(const char* arg) {
+    return is_short_flag(arg) || is_long_flag(arg);
 }
