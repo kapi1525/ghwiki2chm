@@ -146,8 +146,12 @@ void chm::project::convert_source_files() {
 
         utils::unreachable();
     }
+}
 
-    // Download remote dependencies
+
+
+// Download remote dependencies
+void chm::project::download_dependencies() {
     std::mutex dependencies_deque_mutex;
     std::vector<std::thread> download_threads;
 
@@ -172,6 +176,74 @@ void chm::project::convert_source_files() {
     }
 
     std::cout << "Downloaded " << downloaded_count << " files successfully" << std::endl;
+}
+
+// Write function for curl
+static std::size_t write_callback(char* ptr, std::size_t size, std::size_t nmemb, std::ofstream* file) {
+    std::size_t size_in_bytes = size * nmemb;
+    file->write(ptr, size_in_bytes);
+    if(!*file) {
+        return 0;
+    }
+    return size_in_bytes;
+}
+
+// Call curl_global_init before!
+void chm::project::download_depdendencies_thread(std::mutex& dependencies_deque_mutex) {
+    for (auto &&dep : remote_dependencies) {
+        {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            if(dep.downloading || dep.downloaded || dep.download_failed) {
+                continue;
+            }
+
+            dep.downloading = true;
+            std::cout << "  " << dep.link << std::endl;
+        }
+
+        // std::filesystem::path target_filepath = temp_path / link_match[2].str();
+        std::filesystem::create_directories(std::filesystem::absolute(dep.target).remove_filename());
+
+        std::ofstream file(dep.target);
+
+        if(!file) {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            dep.download_failed = true;
+            continue;
+        }
+
+        CURL* curl = curl_easy_init();
+
+        if(!curl) {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            dep.download_failed = true;
+            continue;
+        }
+
+        CURLcode res;
+        curl_easy_setopt(curl, CURLOPT_URL, dep.link.c_str());
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);       // Required for thread safety
+        // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        res = curl_easy_perform(curl);
+
+        file.close();
+
+        if(res || !file) {
+            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+            dep.download_failed = true;
+            continue;
+        }
+
+        curl_easy_cleanup(curl);
+
+        std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
+        dep.downloaded = true;
+    }
 }
 
 
@@ -469,73 +541,4 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
     }
 
     return toc_entry;
-}
-
-
-
-static std::size_t write_callback(char* ptr, std::size_t size, std::size_t nmemb, std::ofstream* file) {
-    std::size_t size_in_bytes = size * nmemb;
-    file->write(ptr, size_in_bytes);
-    if(!*file) {
-        return 0;
-    }
-    return size_in_bytes;
-}
-
-// Call curl_global_init before!
-void chm::project::download_depdendencies_thread(std::mutex& dependencies_deque_mutex) {
-    for (auto &&dep : remote_dependencies) {
-        {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            if(dep.downloading || dep.downloaded || dep.download_failed) {
-                continue;
-            }
-
-            dep.downloading = true;
-            std::cout << "  " << dep.link << std::endl;
-        }
-
-        // std::filesystem::path target_filepath = temp_path / link_match[2].str();
-        std::filesystem::create_directories(std::filesystem::absolute(dep.target).remove_filename());
-
-        std::ofstream file(dep.target);
-
-        if(!file) {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            dep.download_failed = true;
-            continue;
-        }
-
-        CURL* curl = curl_easy_init();
-
-        if(!curl) {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            dep.download_failed = true;
-            continue;
-        }
-
-        CURLcode res;
-        curl_easy_setopt(curl, CURLOPT_URL, dep.link.c_str());
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);       // Required for thread safety
-        // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-        res = curl_easy_perform(curl);
-
-        file.close();
-
-        if(res || !file) {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            dep.download_failed = true;
-            continue;
-        }
-
-        curl_easy_cleanup(curl);
-
-        std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-        dep.downloaded = true;
-    }
 }

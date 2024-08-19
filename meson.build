@@ -3,7 +3,7 @@ project(
     'cpp', 'c',
     version: '0.1.0',
     license: 'MIT',
-    default_options: ['warning_level=1', 'cpp_std=c++20', 'c_std=c11'],
+    default_options: ['warning_level=1', 'cpp_std=c++20', 'c_std=c11', 'default_library=static',],
     meson_version: '>=1.0',
 )
 

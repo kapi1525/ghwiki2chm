@@ -101,6 +101,7 @@ namespace chm {
         void create_from_ghwiki(std::filesystem::path default_file);
 
         void convert_source_files();        // Copy or covert project source files to temp dir
+        void download_dependencies();       // Download remote images that are used in the project
         void generate_project_files();      // Create .hhc .hhp
 
     private:
@@ -131,14 +132,16 @@ namespace chm {
         };
         std::deque<remote_dependency> remote_dependencies;
 
+        void download_depdendencies_thread(std::mutex& dependencies_deque_mutex);
+
         std::string to_hhc(toc_item& item);
-        void scan_html_for_local_dependencies(const std::string& html); // Looks local for dependencies like images and includes them into the project
-        void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded
+
+        void scan_html_for_local_dependencies(const std::string& html); // Looks for local dependencies like images and includes them into the project
+        void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded and updates the url to point to a local file
         void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
         void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
-        toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
 
-        void download_depdendencies_thread(std::mutex& dependencies_deque_mutex);
+        toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
     };
 
 

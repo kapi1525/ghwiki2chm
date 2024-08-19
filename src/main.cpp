@@ -6,28 +6,6 @@
 
 
 
-// ghwiki2chm -n "My help!" -r "/path/to/md/files" -o "/path/to/out.chm" -t "/path/to/temp/dir"
-
-
-void print_help() {
-    const char* help_string = ""
-        "Usage: ghwiki2chm [options]\n"
-        "\n"
-        "Options:\n"
-        "  -h             Show this help message.\n"
-        "  -n <name>      Project name, will be visible in compiled chm.\n"
-        "  -r <directory> Project root.          (Default: .)\n"
-        "  -d <file>      Project default file.\n"
-        "  -t <directory> Temp directory.        (Default: ./temp)\n"
-        "  -o <file>      Output .chm file path. (Default: ./out.chm)\n"
-        "";
-
-    std::printf("%s\n", help_string);
-
-    exit(0);
-}
-
-
 int main(int argc, const char *argv[]) {
     chm::project proj;
 
@@ -108,6 +86,7 @@ int main(int argc, const char *argv[]) {
 
     proj.create_from_ghwiki(default_file);
     proj.convert_source_files();
+    proj.download_dependencies();
     proj.generate_project_files();
 
     auto* compiler = chm::find_available_compiler();

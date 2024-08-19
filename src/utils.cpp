@@ -277,23 +277,50 @@ void utils::cmd_parser::display_help_string() {
     std::printf("Usage: %s [options]\n\n", program_name);
     std::printf("Options:\n");
 
+    int pad = 0;
+    for (auto &&arg : arg_definitions) {
+        int new_pad = 2;
+        if(arg.short_flag) {
+            new_pad += 3;    // "-%c "
+        }
+        if(arg.long_flag) {
+            new_pad += 3 + std::strlen(arg.long_flag);      // "--%s "
+        }
+        if(arg.argument_name) {
+            new_pad += 3 + std::strlen(arg.argument_name);  // "<%s> "
+        }
+        if(new_pad > pad) {
+            pad = new_pad;
+        }
+    }
+
     for (auto &&arg : arg_definitions) {
         std::printf("  ");
+        int to_pad = pad - 2;
+
         if(arg.short_flag) {
             std::printf("-%c ", arg.short_flag);
+            to_pad -= 3;
         }
         if(arg.long_flag) {
             std::printf("--%s ", arg.long_flag);
+            to_pad -= 3 + std::strlen(arg.long_flag);
         }
         if(arg.argument_name) {
             std::printf("<%s> ", arg.argument_name);
+            to_pad -= 3 + std::strlen(arg.argument_name);
         }
+
+        for (size_t i = 0; i < to_pad; i++) {
+            std::putc(' ', stdout);
+        }
+
         if(arg.help_string) {
             std::printf("%s", arg.help_string);
         }
         std::printf("\n");
     }
-    
+
     std::printf("\n");
 }
 
