@@ -470,10 +470,12 @@ void chm::project::update_html_headings(std::string& html) {
 void chm::project::update_html_links(std::string& html) {
     std::regex link_tag_test("(<a +href=\")(.*?)(\">)");
 
-    std::cmatch match;
+    std::match_results<std::string_view::const_iterator> match;
     for (size_t i = 0; i < html.length(); i += match.position() + match.length()) {
-        std::string_view html_sv = html;
-        if(!std::regex_search(html_sv.substr(i).begin(), html_sv.substr(i).end(), match, link_tag_test)) {
+        std::string_view html_sv(html);
+        html_sv = html_sv.substr(i);
+
+        if(!std::regex_search(html_sv.begin(), html_sv.end(), match, link_tag_test)) {
             break;
         }
 
