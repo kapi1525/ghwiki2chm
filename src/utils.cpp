@@ -217,7 +217,7 @@ void utils::unreachable(const std::source_location location) {
     std::fprintf(stderr, "%s:%d:%d: Unreachable!\n", location.file_name(), location.line(), location.column());
     std::fflush(stdout);
     std::fflush(stderr);
-    abort();
+    std::abort();
 }
 
 
@@ -311,7 +311,7 @@ void utils::cmd_parser::display_help_string() {
             to_pad -= 3 + std::strlen(arg.argument_name);
         }
 
-        for (size_t i = 0; i < to_pad; i++) {
+        for (int i = 0; i < to_pad; i++) {
             std::putc(' ', stdout);
         }
 

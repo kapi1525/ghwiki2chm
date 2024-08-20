@@ -464,56 +464,72 @@ void chm::project::update_html_headings(std::string& html) {
 
 
 
+// Update urls
+// - If file path points to one of the files in this->files.original, replace path to this->files.target
+// - If file doesnt have an extension look for simmilar file path/name in this0>files.original and replace it with this->files.target
 void chm::project::update_html_links(std::string& html) {
-    // FIXME
-    // std::regex link_tag_test("(<a +href=\")(.*?)(\">)");
+    std::regex link_tag_test("(<a +href=\")(.*?)(\">)");
 
-    // std::string temp = html;
+    std::cmatch match;
+    for (size_t i = 0; i < html.length(); i += match.position() + match.length()) {
+        std::string_view html_sv = html;
+        if(!std::regex_search(html_sv.substr(i).begin(), html_sv.substr(i).end(), match, link_tag_test)) {
+            break;
+        }
 
-    // std::smatch match;
-    // for (size_t i = 0; i < html.size(); i += match.position()) {
-    //     temp = html.substr(i);
-    //     if(!std::regex_search(temp, match, link_tag_test)) {
-    //         break;
-    //     }
+        std::string url_str = match[2];
+        utils::url url_parsed;
 
-    //     std::string url_str = match[2];
+        // Parse the link and check if link is to a local resource, if not skip it.
+        if(!utils::parse_url(url_str, &url_parsed) || !url_parsed.host.empty() || url_parsed.resource_path.empty()) {
+            continue;
+        }
 
-    //     utils::url url_parsed;
-    //     if(!utils::parse_url(url_str, &url_parsed)) {
-    //         continue;
-    //     }
 
-    //     if(url_parsed.host.empty() && !url_parsed.resource_path.empty()) {
-    //         std::filesystem::path resource_path = root_path / url_parsed.resource_path;
+        bool handled = false;
 
-    //         bool found_link_target = false;
-    //         for (auto &&file : files) {
-    //             if(resource_path == file.original) {
-    //                 resource_path = file.target;
-    //                 found_link_target = true;
-    //                 break;
-    //             }
-    //         }
+        for (auto &&file : files) {
+            // links to files
+            if(std::filesystem::relative(url_parsed.resource_path, root_path) == std::filesystem::relative(file.original, root_path)) {
+                url_parsed.resource_path = std::filesystem::relative(file.target, temp_path).string();
+                handled = true;
+                break;
+            }
 
-    //         if(!found_link_target) {
-    //             i += match.length();
-    //             continue;
-    //         }
+            // github wiki page links
+            std::string link_target;
 
-    //         url_parsed.resource_path = std::filesystem::relative(resource_path, temp_path).string();
-    //     }
+            for (auto c : std::filesystem::relative(file.original, root_path).replace_extension("").string()) {
+                if(std::isspace(c)) {
+                    link_target += '-';
+                }
+                if(std::isalnum(c)) {
+                    link_target += std::tolower(c);
+                }
+                if(c == '/') {
+                    link_target += c;
+                }
+            }
 
-    //     std::string new_link_tag = match[1];
-    //     new_link_tag += utils::to_string(url_parsed);
-    //     new_link_tag += match[3];
+            if(url_parsed.resource_path == link_target) {
+                url_parsed.resource_path = std::filesystem::relative(file.target, temp_path).string();
+                handled = true;
+                break;
+            }
+        }
 
-    //     std::cout << "  new url: " << new_link_tag << std::endl;
+        if(handled) {
+            std::string new_link_tag = match[1];
+            new_link_tag += utils::to_string(url_parsed);
+            new_link_tag += match[3];
 
-    //     html.replace(i + match.position(), match.length(), new_link_tag);
+            html.replace(i + match.position(), match.length(), new_link_tag);
 
-    //     i += new_link_tag.length();
-    // }
+            i += new_link_tag.length() - match.size();
+        } else {
+            std::printf("  Unknown link: \"%s\", it will be broken inside the compiled .chm file.\n", url_str.c_str());
+        }
+    }
 }
 
 
