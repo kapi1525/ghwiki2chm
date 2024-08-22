@@ -22,8 +22,6 @@
 
 
 // Look for executable in PATH
-// Made for posix compatible systems but might work on windows
-// FIXME: Windows
 std::filesystem::path utils::find_executable(std::string command) {
     if(std::filesystem::exists(command)) {
         return std::filesystem::absolute(command);
@@ -35,8 +33,15 @@ std::filesystem::path utils::find_executable(std::string command) {
         return {};
     }
 
+    #ifdef PLATFORM_POSIX
+    char env_path_separator = ':';
+    #elif defined(PLATFORM_WINDOWS)
+    char env_path_separator = ';';
+    #endif
+
     for (size_t i = 0; i < env_path.size(); i++) {
-        std::size_t end = env_path.find(':', i);
+
+        std::size_t end = env_path.find(env_path_separator, i);
 
         if(end == std::string_view::npos) {
             end = env_path.size();
@@ -50,11 +55,13 @@ std::filesystem::path utils::find_executable(std::string command) {
         }
 
         for (auto &&i : std::filesystem::directory_iterator(path)) {
-            if(!i.is_regular_file()) {
+            std::error_code err;
+            if(!i.is_regular_file(err) || err) {
                 continue;
             }
 
-            if(i.path().filename() == command) {
+            // FIXME: On windows look for exe files.
+            if(i.path().filename().replace_extension("") == command) {
                 return i.path();
             }
         }
@@ -66,9 +73,12 @@ std::filesystem::path utils::find_executable(std::string command) {
 
 
 int utils::run_process(std::filesystem::path executable, const std::vector<std::string>& args, std::filesystem::path process_current_path) {
-#ifdef PLATFORM_WINDWS
+#ifdef PLATFORM_WINDOWS
+    // TODO: Make this nicer
     std::string temp_cmd;
-
+    temp_cmd += "\"";
+    temp_cmd += executable.string();
+    temp_cmd += "\"";
     for (auto &&arg : args) {
         auto escape_quotes = [](std::string str) -> std::string {
             std::string temp;
@@ -87,24 +97,39 @@ int utils::run_process(std::filesystem::path executable, const std::vector<std::
     }
 
     std::unique_ptr<char[]> command_line = std::make_unique<char[]>(temp_cmd.length() + 1); // +1 for null terminator
+    std::memcpy(command_line.get(), temp_cmd.c_str(), temp_cmd.length());
 
     STARTUPINFO si = {};
     PROCESS_INFORMATION pi = {};
-
     si.cb = sizeof(si);
 
-    if(!CreateProcessA(executable.c_str(), command_line, nullptr, nullptr, false, 0, nullptr, process_current_path.c_str(), &si, &pi)) {
+    if(!CreateProcessA(nullptr, command_line.get(), nullptr, nullptr, false, 0, nullptr, process_current_path.string().c_str(), &si, &pi)) {
         printf( "CreateProcess failed: %d.\n", GetLastError());
         return -1;
     }
 
     // Wait until child process to exit
-    WaitForSingleObject( pi.hProcess, INFINITE );
+    if(WaitForSingleObject(pi.hProcess, INFINITE) == WAIT_FAILED) {
+        printf( "WaitForSingleObject failed: %d.\n", GetLastError());
+        return -1;
+    }
 
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
+    DWORD exit_code = 0;
+    if(!GetExitCodeProcess(pi.hProcess, &exit_code)) {
+        printf( "GetExitCodeProcess failed: %d.\n", GetLastError());
+        return -1;
+    }
 
-    return 0;
+    if(!CloseHandle(pi.hProcess)) {
+        printf( "CloseHandle failed: %d.\n", GetLastError());
+        return -1;
+    }
+    if(!CloseHandle(pi.hThread)) {
+        printf( "CloseHandle failed: %d.\n", GetLastError());
+        return -1;
+    }
+
+    return exit_code;
 
 #elif defined(PLATFORM_POSIX)
     std::size_t argc = args.size() + 1;                                                 // +1 for filename
@@ -137,7 +162,7 @@ int utils::run_process(std::filesystem::path executable, const std::vector<std::
 
 #endif
 
-    return -1;
+    utils::unreachable();
 }
 
 
