@@ -392,9 +392,18 @@ void chm::project::scan_html_for_local_dependencies(const std::string& html) {
 
         bool is_web_link = std::regex_match(url, web_link_test);
 
+        auto file_path = root_path / url;
+
         // If local add the file to project.
-        if(!is_web_link && std::filesystem::exists(root_path / url)) {
-            local_dependencies.push_back({.original = root_path / url});
+        if(!is_web_link && std::filesystem::exists(file_path)) {
+            // If already was added to dependencies skip it.
+            for (auto &&dep : local_dependencies) {
+                if(dep.original == file_path) {
+                    return;
+                }
+            }
+
+            local_dependencies.push_back({.original = file_path});
         }
     }
 }
@@ -414,8 +423,17 @@ void chm::project::scan_html_for_remote_dependencies(std::string& html) {
 
         std::smatch link_match;
         if(std::regex_match(url, link_match, web_link_test)) {
-            remote_dependencies.push_back({.link = url, .target = temp_path / link_match[2].str()});
-            // std::cout << "Found dependency: \"" << url << "\"" << std::endl;
+            bool already_added = false;
+            for (auto &&dep : remote_dependencies) {
+                if(dep.link == url) {
+                    already_added = true;
+                    break;
+                }
+            }
+            if(!already_added) {
+                remote_dependencies.push_back({.link = url, .target = temp_path / link_match[2].str()});
+                // std::cout << "Found dependency: \"" << url << "\"" << std::endl;
+            }
 
             std::string temp = "<img src=";
             temp += std::filesystem::relative(remote_dependencies.back().target, temp_path).string();

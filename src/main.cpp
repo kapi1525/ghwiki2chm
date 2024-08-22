@@ -94,6 +94,7 @@ int main(int argc, const char *argv[]) {
         std::printf("Could'nt find any compatible chm compiler, make sure one is installed.\n");
         return 0;
     }
+    std::printf("Starting compiler...\n");
     if(!chm::compile(&proj, compiler)) {
         std::printf("Compilation failed.\n");
     }
