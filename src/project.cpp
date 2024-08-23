@@ -13,7 +13,11 @@
 
 
 
-void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
+bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
+    if(!std::filesystem::exists(root_path)) {
+        return false;
+    }
+
     for (auto &&dir_entry : std::filesystem::recursive_directory_iterator(root_path)) {
         // Skip all non-file entries
         if(!dir_entry.is_regular_file()) {
@@ -47,7 +51,7 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
     }
 
     if(files.size() == 0) {
-        return;
+        return false;
     }
 
     if(!default_file_link) {
@@ -60,6 +64,8 @@ void chm::project::create_from_ghwiki(std::filesystem::path default_file) {
             }
         }
     }
+
+    return true;
 }
 
 
@@ -93,6 +99,7 @@ void chm::project::convert_source_files() {
     // Copy or convert files
     for (auto &&file : files) {
         std::filesystem::create_directories(std::filesystem::absolute(file.target).remove_filename());
+        std::printf("%s\n", std::filesystem::relative(file.original, root_path).string().c_str());
 
         switch (file.converter) {
         case conversion_type::copy:
@@ -103,8 +110,6 @@ void chm::project::convert_source_files() {
             // md to html parser
             static maddy::Parser parser;
             std::string html_out;
-
-            std::cout << "Converting: " << std::filesystem::relative(file.original) << std::endl;
 
             {
                 std::ifstream md_file(file.original);
@@ -152,12 +157,16 @@ void chm::project::convert_source_files() {
 
 // Download remote dependencies
 void chm::project::download_dependencies() {
+    if(remote_dependencies.size() == 0) {
+        return;
+    }
+
     std::mutex dependencies_deque_mutex;
     std::vector<std::thread> download_threads;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    std::cout << remote_dependencies.size() << " remote dependencies will be downloaded..." << std::endl;
+    std::printf("Will download %zu remote dependencies...\n", remote_dependencies.size());
     for (std::uint32_t i = 0; i < std::thread::hardware_concurrency(); i++) {
         download_threads.emplace_back(&chm::project::download_depdendencies_thread, this, std::ref(dependencies_deque_mutex));
     }
@@ -175,7 +184,7 @@ void chm::project::download_dependencies() {
         }
     }
 
-    std::cout << "Downloaded " << downloaded_count << " files successfully" << std::endl;
+    std::printf("%zu/%zu.\n", downloaded_count, remote_dependencies.size());
 }
 
 // Write function for curl
@@ -198,7 +207,7 @@ void chm::project::download_depdendencies_thread(std::mutex& dependencies_deque_
             }
 
             dep.downloading = true;
-            std::cout << "  " << dep.link << std::endl;
+            std::printf("  %s\n", dep.link.c_str());
         }
 
         // std::filesystem::path target_filepath = temp_path / link_match[2].str();

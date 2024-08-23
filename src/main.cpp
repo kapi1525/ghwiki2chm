@@ -7,6 +7,10 @@
 
 
 int main(int argc, const char *argv[]) {
+    // Disable stdout and stderr buffering.
+    std::setbuf(stdout, nullptr);
+    std::setbuf(stderr, nullptr);
+
     chm::project proj;
 
     proj.title = "Untitled project";
@@ -84,7 +88,11 @@ int main(int argc, const char *argv[]) {
 
     std::filesystem::create_directories(proj.temp_path);
 
-    proj.create_from_ghwiki(default_file);
+    if(!proj.create_from_ghwiki(default_file)) {
+        std::printf("No .md files found in \"%s\", is this the right directory?\n", proj.root_path.string().c_str());
+        return 1;
+    }
+
     proj.convert_source_files();
     proj.download_dependencies();
     proj.generate_project_files();
@@ -92,11 +100,12 @@ int main(int argc, const char *argv[]) {
     auto* compiler = chm::find_available_compiler();
     if(!compiler) {
         std::printf("Could'nt find any compatible chm compiler, make sure one is installed.\n");
-        return 0;
+        return 1;
     }
     std::printf("Starting compiler...\n");
     if(!chm::compile(&proj, compiler)) {
         std::printf("Compilation failed.\n");
+        return 1;
     }
 
     return 0;

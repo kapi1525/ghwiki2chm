@@ -98,7 +98,7 @@ namespace chm {
         bool auto_toc = true;
 
         // create a project config automaticaly from md files and _Sidebar.
-        void create_from_ghwiki(std::filesystem::path default_file);
+        bool create_from_ghwiki(std::filesystem::path default_file);
 
         void convert_source_files();        // Copy or covert project source files to temp dir
         void download_dependencies();       // Download remote images that are used in the project
