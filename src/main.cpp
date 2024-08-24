@@ -4,6 +4,8 @@
 #include "chm.hpp"
 #include "utils.hpp"
 
+#include "config.hpp"
+
 
 
 int main(int argc, const char *argv[]) {
@@ -32,6 +34,16 @@ int main(int argc, const char *argv[]) {
                 },
                 nullptr,
                 "Display this help message.",
+            },
+            {
+                'v',
+                "version",
+                [&]() {
+                    std::printf("ghwiki2chm v" GHWIKI2CHM_VERSION "\n\n");
+                    exit(0);
+                },
+                nullptr,
+                "Display version information.",
             },
             {
                 'n',

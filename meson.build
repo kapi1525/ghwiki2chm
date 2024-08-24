@@ -8,6 +8,16 @@ project(
 )
 
 
+conf_data = configuration_data()
+conf_data.set('GHWIKI2CHM_VERSION', '"' + meson.project_version() + '"')
+configure_file(
+    configuration: conf_data,
+    output: 'config.hpp',
+)
+
+conf_inc = include_directories('.')
+
+
 deps = [
     dependency('threads'),
     import('cmake').subproject('maddy').dependency('maddy'),
@@ -20,6 +30,10 @@ deps = [
         ]).get_variable('curl_dep'),
 ]
 
+inc = [
+    conf_inc,
+]
+
 ghwiki2chm = executable(
     'ghwiki2chm',
     'src/main.cpp',
@@ -27,4 +41,5 @@ ghwiki2chm = executable(
     'src/compiler.cpp',
     'src/utils.cpp',
     dependencies: deps,
+    include_directories: inc,
 )

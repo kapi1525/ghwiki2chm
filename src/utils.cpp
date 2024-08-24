@@ -163,6 +163,7 @@ int utils::run_process(std::filesystem::path executable, const std::vector<std::
 #endif
 
     utils::unreachable();
+    return -1;
 }
 
 
