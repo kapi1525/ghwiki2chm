@@ -7,16 +7,16 @@ const chm::compiler_info* chm::find_available_compiler() {
     // List of supported compilers
     // Their executable name, and with what arguments they should be called
     static const compiler_info compiler_infos[] = {
-        {
-            "chmcmd",
-            {compiler_special_arg::project_file_path, "--no-html-scan"},
-        },
         #ifdef PLATFORM_WINDOWS
         {
             "hhc",
             {compiler_special_arg::project_file_path},
         },
         #endif
+        {
+            "chmcmd",
+            {compiler_special_arg::project_file_path, "--no-html-scan"},
+        },
     };
 
     for (auto &&compiler : compiler_infos) {
@@ -48,6 +48,7 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
     for (auto &&i : compiler->args) {
         std::visit(utils::visit_helper{
             [](std::monostate arg) {
+                utils::unreachable();
             },
             [&](std::string arg) {
                 args.push_back(arg);
@@ -56,12 +57,10 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
                 switch (arg) {
                 case compiler_special_arg::project_file_path:
                     args.push_back((proj->temp_path / "proj.hhp").string());
-                    break;
-
-                default:
-                    std::printf("unreachable\n");
-                    abort();
+                    return;
                 }
+
+                utils::unreachable();
             },
         }, i);
     }
