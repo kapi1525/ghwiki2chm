@@ -1,8 +1,8 @@
-name: Build
+name: Build release
 
 on:
-  push:
-  workflow_dispatch:
+  release:
+    types: published
 
 jobs:
   build:
@@ -22,17 +22,10 @@ jobs:
         with:
           submodules: true
 
-      # - name: Cache subprojects
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: subprojects/packagecache/
-      #     key: ${{ hashFiles('subprojects/*.wrap') }}
-
       - name: Setup python
         uses: actions/setup-python@v5
         with:
           python-version: 'pypy3.9'
-          cache: 'pip'
 
       - name: Install meson and ninja
         run: pip install meson ninja -r requirements.txt
@@ -46,9 +39,11 @@ jobs:
       - name: Compile
         run: meson compile -C bin
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Create zip
+        run: tar -acvf "ghwiki2chm-${{ github.ref_name }}-${{ runner.os }}.zip" -C bin ${{ matrix.executable }}
+
+      - name: Upload release
+        uses: AButler/upload-release-assets@v3.0
         with:
-          name: ghwiki2chm-${{ runner.os }}
-          path: bin/${{ matrix.executable }}
-          if-no-files-found: error
+          files: 'ghwiki2chm-${{ github.ref_name }}-${{ runner.os }}.zip'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
