@@ -122,17 +122,23 @@ namespace chm {
         // Images and other files should be here because files deque cant be changed during scaning for dependencies.
         std::deque<project_file> local_dependencies;
 
+        enum class download_state : uint8_t {
+            none,
+            downloading,
+            downloaded,
+            download_failed,
+        };
+
         // Files on the web that should be downloaded and included into the chm, like images.
         struct remote_dependency {
             std::string link;
             std::filesystem::path target;
-            bool downloading = false;
-            bool downloaded = false;
-            bool download_failed = false;
+            download_state state = download_state::none;
         };
         std::deque<remote_dependency> remote_dependencies;
 
         void download_depdendencies_thread(std::mutex& dependencies_deque_mutex);
+        bool download_file(std::string_view link, std::filesystem::path target);
 
         std::string to_hhc(toc_item& item);
 
