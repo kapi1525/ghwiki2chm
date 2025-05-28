@@ -5,11 +5,13 @@
 #include <cstdio>
 #include <cctype>
 
+#include "RUtils/Helpers.hpp"
+#include "RUtils/Request.hpp"
+#include "RUtils/Link.hpp"
+
 #include "maddy/parser.h"
-#include <curl/curl.h>
 
 #include "chm.hpp"
-#include "utils.hpp"
 
 
 
@@ -93,7 +95,7 @@ void chm::project::convert_source_files() {
             continue;
         }
 
-        utils::unreachable();
+        RUtils::unreachable();
     }
 
     // Copy or convert files
@@ -149,7 +151,7 @@ void chm::project::convert_source_files() {
             continue; }
         }
 
-        utils::unreachable();
+        RUtils::unreachable();
     }
 }
 
@@ -164,8 +166,6 @@ void chm::project::download_dependencies() {
     std::mutex dependencies_deque_mutex;
     std::vector<std::thread> download_threads;
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
     std::printf("Will download %zu remote dependencies...\n", remote_dependencies.size());
     for (std::uint32_t i = 0; i < std::thread::hardware_concurrency(); i++) {
         download_threads.emplace_back(&chm::project::download_depdendencies_thread, this, std::ref(dependencies_deque_mutex));
@@ -174,8 +174,6 @@ void chm::project::download_dependencies() {
     for (auto &&thread : download_threads) {
         thread.join();
     }
-
-    curl_global_cleanup();
 
     size_t downloaded_count = 0;
     for (auto &&dependency : remote_dependencies) {
@@ -213,48 +211,25 @@ void chm::project::download_depdendencies_thread(std::mutex& dependencies_deque_
 
 
 
-// Write function for curl
-static std::size_t write_callback(char* ptr, std::size_t size, std::size_t nmemb, std::ofstream* file) {
-    std::size_t size_in_bytes = size * nmemb;
-    file->write(ptr, size_in_bytes);
-    if(!*file) {
-        return 0;
-    }
-    return size_in_bytes;
-}
-
-bool chm::project::download_file(std::string_view link, std::filesystem::path target) {
+bool chm::project::download_file(const std::string& link, std::filesystem::path target) {
     std::filesystem::create_directories(std::filesystem::absolute(target).remove_filename());
-    std::ofstream file(target);
 
-    if(!file) {
+    RUtils::Request::Result request;
+    if(auto ret = RUtils::Request::get(link); ret) {
+        request = ret;
+    } else {
+        ret.print();
         return false;
     }
 
-    CURL* curl = curl_easy_init();
-
-    if(!curl) {
+    if(request.http_code != 200) {
         return false;
     }
 
-    CURLcode res;
-    curl_easy_setopt(curl, CURLOPT_URL, link.data());
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);       // Required for thread safety
-    // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    res = curl_easy_perform(curl);
-
-    file.close();
-
-    if(res || !file) {
+    if(auto result = request.to_file(target); !result) {
+        result.print();
         return false;
     }
-
-    curl_easy_cleanup(curl);
 
     return true;
 }
@@ -511,10 +486,10 @@ void chm::project::update_html_links(std::string& html) {
         }
 
         std::string url_str = match[2];
-        utils::url url_parsed;
+        auto url_parsed = Link::parse(url_str).value();
 
         // Parse the link and check if link is to a local resource, if not skip it.
-        if(!utils::parse_url(url_str, &url_parsed) || !url_parsed.host.empty() || url_parsed.resource_path.empty()) {
+        if(!url_parsed.host.empty() || url_parsed.resource_path.empty()) {
             continue;
         }
 
@@ -553,7 +528,7 @@ void chm::project::update_html_links(std::string& html) {
 
         if(handled) {
             std::string new_link_tag = match[1];
-            new_link_tag += utils::to_string(url_parsed);
+            new_link_tag += url_parsed.to_string();
             new_link_tag += match[3];
 
             html.replace(i + match.position(), match.length(), new_link_tag);

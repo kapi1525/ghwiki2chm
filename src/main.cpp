@@ -1,9 +1,11 @@
 #include <cstdio>
 #include <filesystem>
+#include <print>
+
+#include "RUtils/CommandLine.hpp"
+#include "RUtils/ErrorOr.hpp"
 
 #include "chm.hpp"
-#include "utils.hpp"
-
 #include "config.hpp"
 
 
@@ -22,7 +24,7 @@ int main(int argc, const char *argv[]) {
 
     std::filesystem::path default_file;
 
-    utils::cmd_parser cmd = {
+    RUtils::CommandLine cmd = {
         .program_name = "ghwiki2chm",
         .arg_definitions = {
             {
@@ -111,7 +113,7 @@ int main(int argc, const char *argv[]) {
 
     auto* compiler = chm::find_available_compiler();
     if(!compiler) {
-        std::printf("Could'nt find any compatible chm compiler, make sure one is installed.\n");
+        std::printf("Couldn't find any compatible chm compiler, make sure one is installed.\n");
         return 1;
     }
     std::printf("Starting compiler...\n");

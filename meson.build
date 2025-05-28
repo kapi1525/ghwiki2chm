@@ -1,45 +1,39 @@
 project(
     'ghwiki2chm',
     'cpp', 'c',
-    version: '0.1.2',
+    version: '0.1.3',
     license: 'MIT',
-    default_options: ['warning_level=1', 'cpp_std=c++20', 'c_std=c11', 'default_library=static'],
-    meson_version: '>=1.0',
+    default_options: {
+        'cpp_std':          'c++23',
+        'c_std':            'c11',
+        'warning_level':    '1',
+    },
+    meson_version: '>=1.2',
 )
 
+src = files(
+    'src/main.cpp',
+    'src/project.cpp',
+    'src/compiler.cpp',
+)
 
-conf_data = configuration_data()
-conf_data.set('GHWIKI2CHM_VERSION', '"' + meson.project_version() + '"')
-configure_file(
-    configuration: conf_data,
+src += configure_file(
+    configuration: configuration_data({
+        'GHWIKI2CHM_VERSION': '"' + meson.project_version() + '"',
+    }),
     output: 'config.hpp',
 )
-
-conf_inc = include_directories('.')
 
 
 deps = [
     dependency('threads'),
+    dependency('rutils-base', fallback: 'random-utils'),
+    dependency('rutils-request', fallback: 'random-utils'),
     import('cmake').subproject('maddy').dependency('maddy'),
-    subproject(
-        'curl',
-        default_options: [
-            'tests=disabled',
-            'unittests=disabled',
-            'default_library=static',
-        ]).get_variable('curl_dep'),
-]
-
-inc = [
-    conf_inc,
 ]
 
 ghwiki2chm = executable(
     'ghwiki2chm',
-    'src/main.cpp',
-    'src/project.cpp',
-    'src/compiler.cpp',
-    'src/utils.cpp',
+    sources: src,
     dependencies: deps,
-    include_directories: inc,
 )

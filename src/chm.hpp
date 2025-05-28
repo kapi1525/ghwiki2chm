@@ -138,7 +138,7 @@ namespace chm {
         std::deque<remote_dependency> remote_dependencies;
 
         void download_depdendencies_thread(std::mutex& dependencies_deque_mutex);
-        bool download_file(std::string_view link, std::filesystem::path target);
+        bool download_file(const std::string& link, std::filesystem::path target);
 
         std::string to_hhc(toc_item& item);
 
