@@ -4,7 +4,7 @@ project(
     version: '0.1.3',
     license: 'MIT',
     default_options: {
-        'cpp_std':          'c++23',
+        'cpp_std':          'c++20',
         'c_std':            'c11',
         'warning_level':    '1',
     },
