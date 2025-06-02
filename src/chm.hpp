@@ -6,7 +6,6 @@
 #include <string>
 #include <filesystem>
 #include <variant>
-#include <mutex>
 
 
 
@@ -136,9 +135,6 @@ namespace chm {
             download_state state = download_state::none;
         };
         std::deque<remote_dependency> remote_dependencies;
-
-        void download_depdendencies_thread(std::mutex& dependencies_deque_mutex);
-        bool download_file(const std::string& link, std::filesystem::path target);
 
         std::string to_hhc(toc_item& item);
 

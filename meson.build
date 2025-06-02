@@ -6,6 +6,7 @@ project(
     default_options: {
         'cpp_std':          'c++20',
         'c_std':            'c11',
+        # 'prefer_static':    'true',
         'warning_level':    '1',
     },
     meson_version: '>=1.2',
@@ -28,8 +29,16 @@ src += configure_file(
 deps = [
     dependency('threads'),
     dependency('rutils-base', fallback: 'random-utils'),
-    dependency('rutils-request', fallback: 'random-utils'),
     import('cmake').subproject('maddy').dependency('maddy'),
+    # TODO: Make curl dependencies static
+    subproject(
+        'curl',
+        default_options: {
+            'tool': 'disabled',
+            'tests': 'disabled',
+            'unittests': 'disabled',
+        },
+    ).get_variable('curl_dep'),
 ]
 
 ghwiki2chm = executable(

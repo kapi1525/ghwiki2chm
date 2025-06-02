@@ -1,3 +1,6 @@
+#include <cstdio>
+#include <cctype>
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <regex>
@@ -10,6 +13,7 @@
 #include "RUtils/Link.hpp"
 
 #include "maddy/parser.h"
+#include "curl/curl.h"
 
 #include "chm.hpp"
 
@@ -157,81 +161,107 @@ void chm::project::convert_source_files() {
 
 
 
+// for curl
+static size_t write_callback(char* ptr, size_t size, size_t nmemb, std::ofstream* file) {
+    size_t bytes_to_write = size * nmemb;
+
+    file->write(ptr, bytes_to_write);
+
+    return bytes_to_write;
+}
+
 // Download remote dependencies
 void chm::project::download_dependencies() {
+// Nothing to download.
     if(remote_dependencies.size() == 0) {
         return;
     }
 
-    std::mutex dependencies_deque_mutex;
-    std::vector<std::thread> download_threads;
-
     std::printf("Will download %zu remote dependencies...\n", remote_dependencies.size());
-    for (std::uint32_t i = 0; i < std::thread::hardware_concurrency(); i++) {
-        download_threads.emplace_back(&chm::project::download_depdendencies_thread, this, std::ref(dependencies_deque_mutex));
+    
+
+    const size_t max_connections = std::min((size_t)8, remote_dependencies.size());
+    size_t next_dep_to_download_index = 0;  // index to remote_dependencies[]
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURLM* multi_handle = curl_multi_init();
+
+
+    struct downloader_state {
+        CURL* handle;
+        remote_dependency* dep_ptr; // assigned file or nullptr
+        std::ofstream* file_ptr;    // target file output stream or nullptr
+    };
+
+    std::vector<downloader_state> downloaders(max_connections);
+
+    for (auto& download : downloaders) {
+        CURL* handle = curl_easy_init();
+        curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_callback);
+        // curl_easy_setopt(handle, CURLOPT_VERBOSE, true);
+        download.handle = handle;
     }
 
-    for (auto &&thread : download_threads) {
-        thread.join();
-    }
 
+    int running_handles = 0;
     size_t downloaded_count = 0;
-    for (auto &&dependency : remote_dependencies) {
-        if(dependency.state == download_state::downloaded) {
-            downloaded_count++;
+    
+    do {
+        if((size_t)running_handles < max_connections && next_dep_to_download_index < remote_dependencies.size()) {
+            for (auto& download : downloaders) {
+                if (download.dep_ptr == nullptr && download.file_ptr == nullptr) {
+                    download.dep_ptr = &remote_dependencies[next_dep_to_download_index];
+                    next_dep_to_download_index++;
+
+                    std::filesystem::create_directories(std::filesystem::absolute(download.dep_ptr->target).remove_filename());
+                    download.file_ptr = new std::ofstream(download.dep_ptr->target);
+
+                    curl_easy_setopt(download.handle, CURLOPT_URL, download.dep_ptr->link.c_str());
+                    curl_easy_setopt(download.handle, CURLOPT_WRITEDATA, download.file_ptr);
+                    curl_multi_add_handle(multi_handle, download.handle);
         }
+        
+                if(next_dep_to_download_index >= remote_dependencies.size()) {
+                    break;
+                }
+            }
+        }
+
+        curl_multi_perform(multi_handle, &running_handles);
+
+        int msgs_in_queue = 0;
+        while (CURLMsg* msg = curl_multi_info_read(multi_handle, &msgs_in_queue)) {
+            if(msg->msg == CURLMSG_DONE) {
+                for (auto& download : downloaders) {
+                    if(download.handle == msg->easy_handle) {
+                        curl_multi_remove_handle(multi_handle, download.handle);
+            std::printf("%s\n", download.dep_ptr->link.c_str());
+                        download.dep_ptr = nullptr;
+                        delete download.file_ptr;
+                        download.file_ptr = nullptr;
+                        downloaded_count++;
+                        break;
+                    }
+                }
+            }
+        };
+
+        int fds;
+        curl_multi_poll(multi_handle, nullptr, 0, 1000, &fds);
+    } while (running_handles);
+
+
+    for (auto& download : downloaders) {
+        curl_easy_cleanup(download.handle);
+        download.handle = nullptr;
     }
+
+    curl_multi_cleanup(multi_handle);
 
     std::printf("%zu/%zu.\n", downloaded_count, remote_dependencies.size());
-}
-
-
-
-// Call curl_global_init before!
-void chm::project::download_depdendencies_thread(std::mutex& dependencies_deque_mutex) {
-    for (auto &&dep : remote_dependencies) {
-        {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            if(dep.state != download_state::none) {
-                continue;
-            }
-            dep.state = download_state::downloading;
-        }
-        if(download_file(dep.link, dep.target)) {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            std::printf("%s\n", dep.link.c_str());
-            dep.state = download_state::downloaded;
-        } else {
-            std::lock_guard<std::mutex> lock(dependencies_deque_mutex);
-            std::printf("Failed to download: \"%s\"\n", dep.link.c_str());
-            dep.state = download_state::download_failed;
-        }
-    }
-}
-
-
-
-bool chm::project::download_file(const std::string& link, std::filesystem::path target) {
-    std::filesystem::create_directories(std::filesystem::absolute(target).remove_filename());
-
-    RUtils::Request::Result request;
-    if(auto ret = RUtils::Request::get(link); ret) {
-        request = ret;
-    } else {
-        ret.print();
-        return false;
-    }
-
-    if(request.http_code != 200) {
-        return false;
-    }
-
-    if(auto result = request.to_file(target); !result) {
-        result.print();
-        return false;
-    }
-
-    return true;
 }
 
 
