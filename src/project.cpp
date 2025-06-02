@@ -13,6 +13,9 @@
 #include "RUtils/Link.hpp"
 
 #include "maddy/parser.h"
+
+#define NOMINMAX // Maybe a bug in curl.wrap: on windows min max macros are added and collide with std::min/std::max
+                 // why microsoft didn't make this the default already??? no one uses those.
 #include "curl/curl.h"
 
 #include "chm.hpp"
