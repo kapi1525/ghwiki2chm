@@ -4,13 +4,10 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
-#include <thread>
-#include <cstdio>
-#include <cctype>
 
 #include "RUtils/Helpers.hpp"
-#include "RUtils/Request.hpp"
 #include "RUtils/Link.hpp"
+#include "RUtils/ForEach.hpp"
 
 #include "maddy/parser.h"
 
@@ -106,14 +103,14 @@ void chm::project::convert_source_files() {
     }
 
     // Copy or convert files
-    for (auto &&file : files) {
+    RUtils::for_each_threaded(files.begin(), files.end(), [&](auto& file) {
         std::filesystem::create_directories(std::filesystem::absolute(file.target).remove_filename());
         std::printf("%s\n", std::filesystem::relative(file.original, root_path).string().c_str());
 
         switch (file.converter) {
         case conversion_type::copy:
             std::filesystem::copy_file(file.original, file.target, std::filesystem::copy_options::overwrite_existing);
-            continue;
+            return;
 
         case conversion_type::markdown: {
             // md to html parser
@@ -155,11 +152,11 @@ void chm::project::convert_source_files() {
                 }
             }
 
-            continue; }
+            return; }
         }
 
         RUtils::unreachable();
-    }
+    });
 }
 
 
@@ -175,13 +172,13 @@ static size_t write_callback(char* ptr, size_t size, size_t nmemb, std::ofstream
 
 // Download remote dependencies
 void chm::project::download_dependencies() {
-// Nothing to download.
+    // Nothing to download.
     if(remote_dependencies.size() == 0) {
         return;
     }
 
     std::printf("Will download %zu remote dependencies...\n", remote_dependencies.size());
-    
+
 
     const size_t max_connections = std::min((size_t)8, remote_dependencies.size());
     size_t next_dep_to_download_index = 0;  // index to remote_dependencies[]
@@ -211,7 +208,7 @@ void chm::project::download_dependencies() {
 
     int running_handles = 0;
     size_t downloaded_count = 0;
-    
+
     do {
         if((size_t)running_handles < max_connections && next_dep_to_download_index < remote_dependencies.size()) {
             for (auto& download : downloaders) {
@@ -225,8 +222,8 @@ void chm::project::download_dependencies() {
                     curl_easy_setopt(download.handle, CURLOPT_URL, download.dep_ptr->link.c_str());
                     curl_easy_setopt(download.handle, CURLOPT_WRITEDATA, download.file_ptr);
                     curl_multi_add_handle(multi_handle, download.handle);
-        }
-        
+                }
+
                 if(next_dep_to_download_index >= remote_dependencies.size()) {
                     break;
                 }
@@ -241,7 +238,7 @@ void chm::project::download_dependencies() {
                 for (auto& download : downloaders) {
                     if(download.handle == msg->easy_handle) {
                         curl_multi_remove_handle(multi_handle, download.handle);
-            std::printf("%s\n", download.dep_ptr->link.c_str());
+                        std::printf("%s\n", download.dep_ptr->link.c_str());
                         download.dep_ptr = nullptr;
                         delete download.file_ptr;
                         download.file_ptr = nullptr;
