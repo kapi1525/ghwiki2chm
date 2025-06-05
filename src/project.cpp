@@ -5,7 +5,6 @@
 #include <fstream>
 #include <regex>
 
-#include "RUtils/Helpers.hpp"
 #include "RUtils/Link.hpp"
 #include "RUtils/ForEach.hpp"
 
@@ -99,7 +98,7 @@ void chm::project::convert_source_files() {
             continue;
         }
 
-        RUtils::unreachable();
+        RUtils::Error::unreachable();
     }
 
     // Copy or convert files
@@ -155,7 +154,7 @@ void chm::project::convert_source_files() {
             return; }
         }
 
-        RUtils::unreachable();
+        RUtils::Error::unreachable();
     });
 }
 

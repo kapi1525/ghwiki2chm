@@ -51,7 +51,7 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
     for (auto &&i : compiler->args) {
         std::visit(RUtils::visit_helper{
             [](std::monostate arg) {
-                RUtils::unreachable();
+                RUtils::Error::unreachable();
             },
             [&](std::string arg) {
                 args.push_back(arg);
@@ -63,7 +63,7 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
                     return;
                 }
 
-                RUtils::unreachable();
+                RUtils::Error::unreachable();
             },
         }, i);
     }

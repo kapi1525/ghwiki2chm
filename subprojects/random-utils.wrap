@@ -1,6 +1,6 @@
 [wrap-git]
 directory = random-utils
 url = https://github.com/kapi1525/random-utils
-revision = 1f4ab6ea474818a991feec5fac5574ac30e3a7c3
+revision = f69992ecc81207b64346c9f7683494859cdfbb83
 depth = 1
 clone-recursive = true
