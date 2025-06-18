@@ -1,26 +1,29 @@
-Tool to convert github wikis into chm files.
+# ghwiki2chm
 
-Requires chmcmd or html help workshop.
+Tool that makes it easy to convert github wikis into chm files.
+
+Requires one of the supported chm compilers:
+- chmcmd (part of free pascal)
+- hhc (html help workshop. dead)
 
 # Building
 
-## Dependencies windows
+## Dependencies:
 
-Single winget command to install all dependencies required to build.
-
-`winget install mesonbuild.meson Ninja-build.Ninja Kitware.CMake Microsoft.VisualStudio.2022.BuildTools`
-
-## Dependencies linux
-
-List of dependencies since every distro has its own packages:
 - meson
 - ninja
-- cmake
-- any compiler
-- openssl (optional, for https support)
+- cmake (for some of the dependencies)
+- any C++20 compiler
+- libcurl (if not present, will be built from source. but it may require some other dependencies as well.)
+
+On linux i recoment to build curl from source as a static library, `.github/scripts/static_deps_from_source.sh` script makes that easy.
+That script requires additionally:
+- make
+- curl (to download source archives)
+- tar
 
 ## Compiling
 
-`meson setup bin`
+- `meson setup bin` (Or if you used static_deps_from_source.sh script, use the command it displayed.)
 
-`meson compile -C bin`
+- `meson compile -C bin`
