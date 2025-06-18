@@ -109,9 +109,13 @@ jobs:
         if: github.event_name == 'release'
         run: 7z a "${{ env.BUNDLE_NAME_TAG }}.zip" "ghwiki2chm/*"
 
+      - name: Create release tar.gz
+        if: github.event_name == 'release'
+        run: tar -cvzf "${{ env.BUNDLE_NAME_TAG }}.tar.gz" "ghwiki2chm/""
+
       - name: Upload release
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: '${{ env.BUNDLE_NAME_TAG }}.zip'
+          files: '${{ env.BUNDLE_NAME_TAG }}.*'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
