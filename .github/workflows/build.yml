@@ -107,8 +107,7 @@ jobs:
 
       - name: Create release zip
         if: github.event_name == 'release'
-        working-directory: bin
-        run: 7z a "../${{ env.BUNDLE_NAME_TAG }}.zip" "ghwiki2chm/*"
+        run: 7z a "${{ env.BUNDLE_NAME_TAG }}.zip" "ghwiki2chm/*"
 
       - name: Upload release
         if: github.event_name == 'release'
