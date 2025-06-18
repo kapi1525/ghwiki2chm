@@ -2,7 +2,6 @@
 #include <filesystem>
 
 #include "RUtils/CommandLine.hpp"
-#include "RUtils/ErrorOr.hpp"
 
 #include "chm.hpp"
 #include "config.hpp"
@@ -22,6 +21,9 @@ int main(int argc, const char *argv[]) {
     proj.out_file = std::filesystem::current_path() / "out.chm";
 
     std::filesystem::path default_file;
+    size_t max_downloads = 8;
+    bool ignore_ssl = false;
+    bool curl_verbose = false;
 
     RUtils::CommandLine cmd = {
         .program_name = "ghwiki2chm",
@@ -53,7 +55,7 @@ int main(int argc, const char *argv[]) {
                     proj.title = param;
                 },
                 "name",
-                "Project name. will be visible in compiled chm.",
+                "Project name. Will be visible in compiled chm.",
             },
             {
                 'r',
@@ -62,7 +64,7 @@ int main(int argc, const char *argv[]) {
                     proj.root_path = std::filesystem::absolute(param);
                 },
                 "directory",
-                "Project root.",
+                "Project root. (default: \".\")",
             },
             {
                 'd',
@@ -80,7 +82,7 @@ int main(int argc, const char *argv[]) {
                     proj.temp_path = std::filesystem::absolute(param);
                 },
                 "directory",
-                "Temp directory.",
+                "Temp directory. (default: \"./temp\")",
             },
             {
                 'o',
@@ -89,7 +91,37 @@ int main(int argc, const char *argv[]) {
                     proj.out_file = std::filesystem::absolute(param);
                 },
                 "file",
-                "Output .chm file path.",
+                "Output .chm file path. (default: \"./out.chm\")",
+            },
+            {
+                0,
+                "max-downloads",
+                [&](std::string param) {
+                    if(std::sscanf(param.c_str(), "%zu", &max_downloads) != 1 || max_downloads == 0) {
+                        std::printf("--max-downloads: expected a positive number but got: \"%s\". Ignored...\n", param.c_str());
+                        max_downloads = 8;
+                    }
+                },
+                "amount",
+                "Max number of parallel file downloads. (default: 8)",
+            },
+            {
+                0,
+                "ignore-ssl",
+                [&]() {
+                    ignore_ssl = true;
+                },
+                nullptr,
+                "Ignore ssl certificates when downloading files.",
+            },
+            {
+                0,
+                "curl-verbose",
+                [&]() {
+                    curl_verbose = true;
+                },
+                nullptr,
+                "Enable verbose output for curl library.",
             },
         },
     };
@@ -107,7 +139,7 @@ int main(int argc, const char *argv[]) {
     }
 
     proj.convert_source_files();
-    proj.download_dependencies();
+    proj.download_dependencies(max_downloads, ignore_ssl, curl_verbose);
     proj.generate_project_files();
 
     auto* compiler = chm::find_available_compiler();

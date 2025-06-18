@@ -100,7 +100,8 @@ namespace chm {
         bool create_from_ghwiki(std::filesystem::path default_file);
 
         void convert_source_files();        // Copy or covert project source files to temp dir
-        void download_dependencies();       // Download remote images that are used in the project
+        // Download remote images that are used in the project
+        void download_dependencies(size_t max_downloads, bool ignore_ssl, bool verbose);
         void generate_project_files();      // Create .hhc .hhp
 
     private:

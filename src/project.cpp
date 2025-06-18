@@ -170,7 +170,7 @@ static size_t write_callback(char* ptr, size_t size, size_t nmemb, std::ofstream
 }
 
 // Download remote dependencies
-void chm::project::download_dependencies() {
+void chm::project::download_dependencies(size_t max_downloads, bool ignore_ssl, bool verbose) {
     // Nothing to download.
     if(remote_dependencies.size() == 0) {
         return;
@@ -179,7 +179,7 @@ void chm::project::download_dependencies() {
     std::printf("Will download %zu remote dependencies...\n", remote_dependencies.size());
 
 
-    const size_t max_connections = std::min((size_t)8, remote_dependencies.size());
+    max_downloads = std::min(max_downloads, remote_dependencies.size());
     size_t next_dep_to_download_index = 0;  // index to remote_dependencies[]
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -192,15 +192,15 @@ void chm::project::download_dependencies() {
         std::ofstream* file_ptr;    // target file output stream or nullptr
     };
 
-    std::vector<downloader_state> downloaders(max_connections);
+    std::vector<downloader_state> downloaders(max_downloads);
 
     for (auto& download : downloaders) {
         CURL* handle = curl_easy_init();
         curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, !ignore_ssl);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, !ignore_ssl);
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_callback);
-        // curl_easy_setopt(handle, CURLOPT_VERBOSE, true);
+        curl_easy_setopt(handle, CURLOPT_VERBOSE, verbose);
         download.handle = handle;
     }
 
@@ -209,7 +209,7 @@ void chm::project::download_dependencies() {
     size_t downloaded_count = 0;
 
     do {
-        if((size_t)running_handles < max_connections && next_dep_to_download_index < remote_dependencies.size()) {
+        if((size_t)running_handles < max_downloads && next_dep_to_download_index < remote_dependencies.size()) {
             for (auto& download : downloaders) {
                 if (download.dep_ptr == nullptr && download.file_ptr == nullptr) {
                     download.dep_ptr = &remote_dependencies[next_dep_to_download_index];
@@ -250,7 +250,7 @@ void chm::project::download_dependencies() {
 
         int fds;
         curl_multi_poll(multi_handle, nullptr, 0, 1000, &fds);
-    } while (running_handles);
+    } while (running_handles || next_dep_to_download_index < remote_dependencies.size());
 
 
     for (auto& download : downloaders) {
