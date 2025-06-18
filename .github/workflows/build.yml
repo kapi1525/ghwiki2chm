@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - '*'     # dont build for tags
+  release:
+    types: published
 
 jobs:
   build-windows:
     runs-on: windows-latest
+
+    env:
+      BUNDLE_NAME_TAG: ghwiki2chm-${{ github.ref_name }}-x86_64-windows
+      BUNDLE_NAME_HASH: ghwiki2chm-${{ github.ref_name }}-${{ github.sha }}-x86_64-windows
 
     steps:
       - name: Checkout
@@ -36,24 +42,28 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ghwiki2chm-windows
+          name: ${{ env.BUNDLE_NAME_HASH }}
           path: bin/ghwiki2chm.exe
           if-no-files-found: error
 
       - name: Create release zip
         if: github.event_name == 'release'
         working-directory: bin
-        run: 7z a "../ghwiki2chm-${{ github.ref_name }}-windows.zip" "ghwiki2chm.exe"
+        run: 7z a "../${{ env.BUNDLE_NAME_TAG }}.zip" "ghwiki2chm.exe"
 
       - name: Upload release
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: 'ghwiki2chm-${{ github.ref_name }}-windows.zip'
+          files: '${{ env.BUNDLE_NAME_TAG }}.zip'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux:
     runs-on: ubuntu-latest
+
+    env:
+      BUNDLE_NAME_TAG: ghwiki2chm-${{ github.ref_name }}-x86_64-linux
+      BUNDLE_NAME_HASH: ghwiki2chm-${{ github.ref_name }}-${{ github.sha }}-x86_64-linux
 
     steps:
       - name: Checkout
@@ -70,30 +80,39 @@ jobs:
       - name: Install meson and ninja
         run: pip install meson ninja
 
+      - name: Cache static dependencies
+        id: cache-deps
+        if: github.event_name != 'release'
+        uses: actions/cache@v4
+        with:
+          path: root
+          key: static-deps-${{ runner.os }}-${{ hashFiles('.github/**') }}
+
       - name: Build static dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: .github/scripts/static_deps_from_source.sh
 
       - name: Configure
-        run: meson setup bin --buildtype release -Dpkg_config_path=${GITHUB_WORKSPACE}/root/lib/pkgconfig,${GITHUB_WORKSPACE}/root/lib64/pkgconfig
+        run: meson setup bin --buildtype release --prefix ${{ github.workspace }}/ghwiki2chm -Dpkg_config_path=${{ github.workspace }}/root/lib/pkgconfig,${{ github.workspace }}/root/lib64/pkgconfig
 
       - name: Compile
-        run: meson compile -C bin
+        run: meson install -C bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ghwiki2chm-linux
-          path: bin/ghwiki2chm
+          name: ${{ env.BUNDLE_NAME_HASH }}
+          path: ghwiki2chm
           if-no-files-found: error
 
       - name: Create release zip
         if: github.event_name == 'release'
         working-directory: bin
-        run: 7z a "../ghwiki2chm-${{ github.ref_name }}-linux.zip" "ghwiki2chm"
+        run: 7z a "../${{ env.BUNDLE_NAME_TAG }}.zip" "ghwiki2chm/*"
 
       - name: Upload release
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: 'ghwiki2chm-${{ github.ref_name }}-linux.zip'
+          files: '${{ env.BUNDLE_NAME_TAG }}.zip'
           repo-token: ${{ secrets.GITHUB_TOKEN }}

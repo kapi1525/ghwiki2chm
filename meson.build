@@ -1,7 +1,7 @@
 project(
     'ghwiki2chm',
     'cpp', 'c',
-    version: '0.2.0',
+    version: '0.2.0-dev',
     license: 'MIT',
     default_options: {
         'cpp_std':          'c++20',
@@ -45,4 +45,5 @@ ghwiki2chm = executable(
     'ghwiki2chm',
     sources: src,
     dependencies: deps,
+    install: true,
 )
