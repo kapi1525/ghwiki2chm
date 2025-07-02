@@ -43,8 +43,8 @@ function cmake_build() {
 
     cmake -S . -B ./build $global_flags $extra_config_flags
     cmake -S . -B ./build $global_flags $extra_config_flags -LAH > ../${name}_opts.txt
-    cmake --build ./build --config Release
-    cmake --install ./build --config Release
+    cmake --build ./build --config Release -v
+    cmake --install ./build --config Release -v
     cd ..
 }
 
@@ -130,6 +130,7 @@ autotools_build zlib \
 get_and_enter https://github.com/facebook/zstd/releases/download/v$zstd_version/zstd-$zstd_version.tar.gz zstd-$zstd_version
 cd build/meson/
 meson setup bin -Ddefault_library=static -Dbin_programs=false --prefix=$install_prefix
+meson compile -C bin -v
 meson install -C bin
 cd ../../../
 
