@@ -111,7 +111,7 @@ jobs:
 
       - name: Create release tar.gz
         if: github.event_name == 'release'
-        run: tar -cvzf "${{ env.BUNDLE_NAME_TAG }}.tar.gz" "ghwiki2chm/""
+        run: tar -cvzf "${{ env.BUNDLE_NAME_TAG }}.tar.gz" "ghwiki2chm"
 
       - name: Upload release
         if: github.event_name == 'release'
