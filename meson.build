@@ -1,12 +1,13 @@
 project(
     'ghwiki2chm',
     'cpp', 'c',
-    version: '0.2.0-dev',
+    version: '0.2.0',
     license: 'MIT',
     default_options: {
         'cpp_std':          'c++20',
         'c_std':            'c11',
         'default_library':  'static',
+        'b_vscrt':          'static_from_buildtype',
         'warning_level':    '1',
     },
     meson_version: '>=1.2',
