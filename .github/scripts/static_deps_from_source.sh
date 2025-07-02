@@ -63,7 +63,7 @@ function autotools_build() {
 
 
 wolfssl_version=5.8.0
-nghttp2_version=1.65.0
+nghttp2_version=1.66.0
 ngtcp2_version=1.13.0
 nghttp3_version=1.10.1
 zlib_version=1.3.1
