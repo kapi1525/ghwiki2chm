@@ -21,6 +21,9 @@ That script requires additionally:
 - make
 - curl (to download source archives)
 - tar
+- autoconf
+- automake
+- libtool
 
 ## Compiling
 

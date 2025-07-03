@@ -129,7 +129,7 @@ autotools_build zlib \
 
 get_and_enter https://github.com/facebook/zstd/releases/download/v$zstd_version/zstd-$zstd_version.tar.gz zstd-$zstd_version
 cd build/meson/
-meson setup bin -Ddefault_library=static -Dbin_programs=false --prefix=$install_prefix
+meson setup bin -Ddefault_library=static -Dbin_programs=false --prefix=$install_prefix -Dzlib=disabled -Dlzma=disabled -Dlz4=disabled -Dlibdir=lib64
 meson compile -C bin -v
 meson install -C bin
 cd ../../../
