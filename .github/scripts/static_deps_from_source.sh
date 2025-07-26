@@ -62,15 +62,15 @@ function autotools_build() {
 }
 
 
-wolfssl_version=5.8.0
+wolfssl_version=5.8.2
 nghttp2_version=1.66.0
-ngtcp2_version=1.13.0
-nghttp3_version=1.10.1
+ngtcp2_version=1.14.0
+nghttp3_version=1.11.0
 zlib_version=1.3.1
 zstd_version=1.5.7
 brotli_version=1.1.0
 
-curl_version=8.14.1
+curl_version=8.15.0
 
 
 if [ ! -d "temp" ]; then
