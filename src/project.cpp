@@ -75,7 +75,7 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
 
 
-void chm::project::convert_source_files() {
+void chm::project::convert_source_files(std::uint32_t max_jobs) {
     // Determine converter
     for (auto &&file : files) {
         if(file.original.extension() == ".md") {
@@ -155,7 +155,7 @@ void chm::project::convert_source_files() {
         }
 
         RUtils::Error::unreachable();
-    });
+    }, max_jobs);
 }
 
 

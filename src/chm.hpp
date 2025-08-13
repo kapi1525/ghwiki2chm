@@ -99,7 +99,9 @@ namespace chm {
         // create a project config automaticaly from md files and _Sidebar.
         bool create_from_ghwiki(std::filesystem::path default_file);
 
-        void convert_source_files();        // Copy or covert project source files to temp dir
+        // Copy or covert project source files to temp dir
+        void convert_source_files(std::uint32_t max_jobs);
+
         // Download remote images that are used in the project
         void download_dependencies(size_t max_downloads, bool ignore_ssl, bool verbose);
         void generate_project_files();      // Create .hhc .hhp

@@ -21,6 +21,7 @@ int main(int argc, const char *argv[]) {
     proj.out_file = std::filesystem::current_path() / "out.chm";
 
     std::filesystem::path default_file;
+    std::uint32_t max_jobs = 0;
     size_t max_downloads = 8;
     bool ignore_ssl = false;
     bool curl_verbose = false;
@@ -94,6 +95,17 @@ int main(int argc, const char *argv[]) {
                 "Output .chm file path. (default: \"./out.chm\")",
             },
             {
+                'j',
+                "jobs",
+                [&](std::string param) {
+                    if(std::sscanf(param.c_str(), "%u", &max_jobs) != 1) {
+                        std::printf("-j --jobs: expected a positive number or 0 but got: \"%s\". Ignored...\n", param.c_str());
+                    }
+                },
+                "amount",
+                "Max nuber of threads to use during conversion. (default: number of threads)",
+            },
+            {
                 0,
                 "max-downloads",
                 [&](std::string param) {
@@ -138,7 +150,7 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
 
-    proj.convert_source_files();
+    proj.convert_source_files(max_jobs);
     proj.download_dependencies(max_downloads, ignore_ssl, curl_verbose);
     proj.generate_project_files();
 
