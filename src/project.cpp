@@ -1,9 +1,11 @@
 #include <cstdio>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <format>
 
 #include "RUtils/Link.hpp"
 #include "RUtils/ForEach.hpp"
@@ -125,6 +127,7 @@ void chm::project::convert_source_files(std::uint32_t max_jobs) {
             scan_html_for_remote_dependencies(html_out);
             update_html_headings(html_out);
             update_html_links(html_out);
+            update_html_remote_links_to_open_in_new_broser_window(html_out);
 
             {
                 std::ofstream html_file(file.target);
@@ -566,6 +569,52 @@ void chm::project::update_html_links(std::string& html) {
         } else {
             std::printf("  Unknown link: \"%s\", it will be broken inside the compiled .chm file.\n", url_str.c_str());
         }
+    }
+}
+
+
+// If url has host add `target="_blank"`
+void chm::project::update_html_remote_links_to_open_in_new_broser_window(std::string& html) {
+    std::regex link_tag_test("(<a +href=\")(.*?)(\")(>)");
+
+    std::match_results<std::string_view::const_iterator> match;
+    for (size_t i = 0; i < html.length(); i += match.position() + match.length()) {
+        std::string_view html_sv(html);
+        html_sv = html_sv.substr(i);
+
+        if(!std::regex_search(html_sv.begin(), html_sv.end(), match, link_tag_test)) {
+            break;
+        }
+
+        std::string url_str = match[2];
+
+        CURLU* url_handle = curl_url();
+
+        if (CURLUcode err = curl_url_set(url_handle, CURLUPART_URL, url_str.c_str(), CURLU_DEFAULT_SCHEME | CURLU_NO_AUTHORITY | CURLU_ALLOW_SPACE); err != CURLUE_OK) {
+            std::puts(std::format("Failed to parse link: \"{}\": {}.", url_str, curl_url_strerror(err)).c_str());
+            curl_url_cleanup(url_handle);
+            continue;
+        }
+
+        char* url_host;
+        if (CURLUcode err = curl_url_get(url_handle, CURLUPART_HOST, &url_host, 0)) {
+            RUtils::Error(curl_url_strerror(err), RUtils::ErrorType::library).print();
+            curl_url_cleanup(url_handle);
+            continue;
+        }
+
+        curl_url_cleanup(url_handle);
+
+        size_t url_host_sz = std::strlen(url_host);
+        curl_free(url_host);
+
+        if (url_host_sz == 0) {
+            continue;
+        }
+
+        constexpr std::string_view to_insert = " target=\"_blank\"";
+        html.insert(i + match.position(4), to_insert);
+        i += to_insert.size();
     }
 }
 

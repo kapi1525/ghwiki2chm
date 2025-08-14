@@ -145,6 +145,7 @@ namespace chm {
         void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded and updates the url to point to a local file
         void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
         void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
+        void update_html_remote_links_to_open_in_new_broser_window(std::string& html);
 
         toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
     };
