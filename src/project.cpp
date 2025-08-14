@@ -582,6 +582,14 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
     toc_entry.name = file->filename().replace_extension("").string();
     toc_entry.file_link = file;
 
+    // replace dashes with spaces
+    // github wiki web editor puts them in the file names
+    for (auto& c : toc_entry.name) {
+        if (c == '-') {
+            c = ' ';
+        }
+    }
+
     for (std::sregex_iterator i = begin; i != end; ++i) {
         std::string heading_id = (*i)[1];
         std::string heading_name = (*i)[2];
