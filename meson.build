@@ -46,5 +46,6 @@ ghwiki2chm = executable(
     'ghwiki2chm',
     sources: src,
     dependencies: deps,
+    cpp_pch: 'src/pch/std.hpp',
     install: true,
 )
