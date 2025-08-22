@@ -161,5 +161,8 @@ cmake_build curl \
 
 cd $start_path
 
+configure_cmd="meson setup bin -Dpkg_config_path=$install_prefix/lib/pkgconfig,$install_prefix/lib64/pkgconfig"
+
 echo To use libraries built from source:
-echo "meson setup bin -Dpkg_config_path=$install_prefix/lib/pkgconfig,$install_prefix/lib64/pkgconfig"
+echo $configure_cmd
+echo $configure_cmd > $install_prefix/configure_cmd
