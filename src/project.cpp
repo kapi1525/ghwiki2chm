@@ -18,6 +18,7 @@
 #include "curl/curl.h"
 
 #include "chm.hpp"
+#include "helpers.hpp"
 
 
 
@@ -641,6 +642,12 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
     for (std::sregex_iterator i = begin; i != end; ++i) {
         std::string heading_id = (*i)[1];
         std::string heading_name = (*i)[2];
+
+        heading_name = trim_whitespace(remove_html_tags(heading_name));
+
+        if(heading_name.empty()) {
+            continue;
+        }
 
         toc_entry.children.push_back({heading_name, file, heading_id});
     }

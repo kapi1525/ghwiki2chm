@@ -14,11 +14,8 @@ project(
 )
 
 
-src = files(
-    'src/main.cpp',
-    'src/project.cpp',
-    'src/compiler.cpp',
-)
+
+subdir('src')
 
 src += configure_file(
     configuration: configuration_data({
