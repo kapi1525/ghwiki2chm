@@ -74,6 +74,10 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
         }
     }
 
+    if (!toc_root_item_name.empty()) {
+        toc.push_back({.name = toc_root_item_name, .file_link = nullptr});
+    }
+
     return true;
 }
 
@@ -148,11 +152,22 @@ void chm::project::convert_source_files(std::uint32_t max_jobs) {
 
             if(auto_toc) {
                 auto toc_entry = create_toc_entries(&file.target, html_out);
-                if(is_default_file) {
+
+                auto* toc_root = &toc;
+
+                if (!toc_root_item_name.empty()) {
+                    toc_root = &toc[0].children;
+
+                    if (is_default_file) {
+                        toc[0].file_link = toc_entry.file_link;
+                    }
+                }
+
+                if (is_default_file) {
                     // Default file shoud be first in toc
-                    toc.push_front(toc_entry);
+                    toc_root->push_front(toc_entry);
                 } else {
-                    toc.push_back(toc_entry);
+                    toc_root->push_back(toc_entry);
                 }
             }
 
@@ -621,11 +636,6 @@ void chm::project::update_html_remote_links_to_open_in_new_broser_window(std::st
 
 
 chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, const std::string& html) {
-    std::regex heading_tag_test("<h[1-6] +id=\"(.+?)\">(.+?)</h[1-6]>");
-
-    auto begin = std::sregex_iterator(html.begin(), html.end(), heading_tag_test);
-    auto end = std::sregex_iterator();
-
     toc_item toc_entry;
 
     toc_entry.name = file->filename().replace_extension("").string();
@@ -638,6 +648,15 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
             c = ' ';
         }
     }
+
+    if(toc_no_section_links) {
+        return toc_entry;
+    }
+
+    std::regex heading_tag_test("<h[1-6] +id=\"(.+?)\">(.+?)</h[1-6]>");
+
+    auto begin = std::sregex_iterator(html.begin(), html.end(), heading_tag_test);
+    auto end = std::sregex_iterator();
 
     for (std::sregex_iterator i = begin; i != end; ++i) {
         std::string heading_id = (*i)[1];

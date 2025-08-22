@@ -47,7 +47,6 @@ std::string remove_html_tags(std::string_view in) {
 std::string_view trim_whitespace(std::string_view in) {
     size_t start = 0, end = in.size();
 
-    std::printf("%zu %zu\n", start, end);
     for (size_t i = 0; i < in.size(); i++) {
         auto c = in[i];
 

@@ -107,6 +107,24 @@ int main(int argc, const char *argv[]) {
             },
             {
                 0,
+                "toc-no-section-links",
+                [&]() {
+                    proj.toc_no_section_links = true;
+                },
+                nullptr,
+                "Don't create TOC items for page sections.",
+            },
+            {
+                0,
+                "toc-root-item-name",
+                [&](std::string param) {
+                    proj.toc_root_item_name = param;
+                },
+                "name",
+                "Don't create TOC items for page sections.",
+            },
+            {
+                0,
                 "max-downloads",
                 [&](std::string param) {
                     if(std::sscanf(param.c_str(), "%zu", &max_downloads) != 1 || max_downloads == 0) {

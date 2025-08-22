@@ -79,7 +79,7 @@ namespace chm {
         std::string name;
         std::filesystem::path* file_link = nullptr;
         std::string target_fragment;
-        std::vector<toc_item> children;
+        std::deque<toc_item> children;
     };
 
     using table_of_contents = std::deque<toc_item>;
@@ -95,6 +95,8 @@ namespace chm {
         std::string title = "test";
         table_of_contents toc;
         bool auto_toc = true;
+        bool toc_no_section_links = false;
+        std::string toc_root_item_name;
 
         // create a project config automaticaly from md files and _Sidebar.
         bool create_from_ghwiki(std::filesystem::path default_file);
