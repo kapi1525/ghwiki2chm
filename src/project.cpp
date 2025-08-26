@@ -75,7 +75,7 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
     }
 
     if (!toc_root_item_name.empty()) {
-        toc.push_back({.name = toc_root_item_name, .file_link = nullptr});
+        toc_root.children.push_back({.name = toc_root_item_name, .file_link = nullptr});
     }
 
     return true;
@@ -151,23 +151,23 @@ void chm::project::convert_source_files(std::uint32_t max_jobs) {
             }
 
             if(auto_toc) {
-                auto toc_entry = create_toc_entries(&file.target, html_out);
+                auto toc_entry = create_toc_entries(&file, html_out);
 
-                auto* toc_root = &toc;
+                auto* toc_append_root = &toc_root;
 
                 if (!toc_root_item_name.empty()) {
-                    toc_root = &toc[0].children;
+                    toc_append_root = &toc_root.children.front();
 
                     if (is_default_file) {
-                        toc[0].file_link = toc_entry.file_link;
+                        toc_append_root->file_link = toc_entry.file_link;
                     }
                 }
 
                 if (is_default_file) {
                     // Default file shoud be first in toc
-                    toc_root->push_front(toc_entry);
+                    toc_append_root->children.push_front(toc_entry);
                 } else {
-                    toc_root->push_back(toc_entry);
+                    toc_append_root->children.push_back(toc_entry);
                 }
             }
 
@@ -356,63 +356,8 @@ void chm::project::generate_project_files() {
 
     // HTML Help table of Contents .hhc
     file_stream.open(temp_path / "proj.hhc");
-
-    file_stream << "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\">\n";
-    file_stream << "<HTML>\n";
-    file_stream << "<HEAD>\n";
-    file_stream << "<meta name=\"GENERATOR\"content=\"ghwiki2chm test\">\n";
-    file_stream << "<!-- Sitemap 1.0 -->\n";
-    file_stream << "</HEAD>\n";
-
-    file_stream << "<BODY>\n";
-
-    file_stream << "<OBJECT type=\"text/site properties\">\n";
-    // file_stream << "<param name=\"Property Name\" value=\"Property Value\">\n";
-    file_stream << "</OBJECT>\n";
-
-    file_stream << "<UL>\n";
-    for (auto &&i : toc) {
-        file_stream << to_hhc(i);
-    }
-    file_stream << "</UL>\n";
-
-    file_stream << "</BODY>\n";
-    file_stream << "</HTML>\n";
-
+    file_stream << toc_root.to_hhc(temp_path);
     file_stream.close();
-}
-
-
-
-std::string chm::project::to_hhc(toc_item& item) {
-    std::string temp = "";
-
-    temp += "<LI> <OBJECT type=\"text/sitemap\">\n";
-    temp += "<param name=\"Name\" value=\"" + item.name + "\">\n";
-
-    if(item.file_link) {
-        std::string link = std::filesystem::relative(*item.file_link, temp_path).string();
-        if(!item.target_fragment.empty()) {
-            link += "#" + item.target_fragment;
-        }
-        temp += "<param name=\"Local\" value=\"" + link + "\">\n";
-    }
-
-    temp += "</OBJECT>\n";
-
-    if(item.children.size() == 0) {
-        return temp;
-    }
-
-    temp += "<UL>\n";
-
-    for (auto &&i : item.children) {
-        temp += to_hhc(i);
-    }
-
-    temp += "</UL>\n";
-
-    return temp;
 }
 
 
@@ -635,10 +580,10 @@ void chm::project::update_html_remote_links_to_open_in_new_broser_window(std::st
 
 
 
-chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, const std::string& html) {
-    toc_item toc_entry;
+chm::TableOfContentsItem chm::project::create_toc_entries(project_file* file, const std::string& html) {
+    TableOfContentsItem toc_entry;
 
-    toc_entry.name = file->filename().replace_extension("").string();
+    toc_entry.name = file->target.filename().replace_extension("").string();
     toc_entry.file_link = file;
 
     // replace dashes with spaces
@@ -658,6 +603,8 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
     auto begin = std::sregex_iterator(html.begin(), html.end(), heading_tag_test);
     auto end = std::sregex_iterator();
 
+    std::size_t found_fragments = 0;
+
     for (std::sregex_iterator i = begin; i != end; ++i) {
         std::string heading_id = (*i)[1];
         std::string heading_name = (*i)[2];
@@ -668,10 +615,12 @@ chm::toc_item chm::project::create_toc_entries(std::filesystem::path* file, cons
             continue;
         }
 
-        toc_entry.children.push_back({heading_name, file, heading_id});
+        toc_entry.children.push_back({.name = heading_name, .fragment = heading_id, .file_link = file});
+
+        found_fragments++;
     }
 
-    if(toc_entry.children.size() == 1) {
+    if(found_fragments == 1) {
         toc_entry.children.clear();
     }
 

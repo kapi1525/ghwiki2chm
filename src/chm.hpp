@@ -7,6 +7,9 @@
 #include <filesystem>
 #include <variant>
 
+#include "project_file.hpp"
+#include "table_of_contents.hpp"
+
 
 
 namespace chm {
@@ -74,17 +77,6 @@ namespace chm {
     };
 
 
-
-    struct toc_item {
-        std::string name;
-        std::filesystem::path* file_link = nullptr;
-        std::string target_fragment;
-        std::deque<toc_item> children;
-    };
-
-    using table_of_contents = std::deque<toc_item>;
-
-
     class project {
     public:
         project() = default;
@@ -93,7 +85,7 @@ namespace chm {
         std::filesystem::path root_path, temp_path, out_file;
         std::filesystem::path* default_file_link = nullptr;
         std::string title = "test";
-        table_of_contents toc;
+        TableOfContentsItem toc_root;
         bool auto_toc = true;
         bool toc_no_section_links = false;
         std::string toc_root_item_name;
@@ -108,18 +100,8 @@ namespace chm {
         void download_dependencies(size_t max_downloads, bool ignore_ssl, bool verbose);
         void generate_project_files();      // Create .hhc .hhp
 
-    private:
-        // github supports more markup formats so potentialy others can be added in the future.
-        enum class conversion_type : std::uint32_t {
-            copy,
-            markdown,
-        };
 
-        struct project_file {
-            std::filesystem::path original; // Original file
-            std::filesystem::path target;   // File in temp path, copied or converted from supported format to html. Will be included inside chm.
-            conversion_type converter;      // What converter should be used.
-        };
+    private:
         std::deque<project_file> files;
 
         // Aditional local files that should be included into the chm, like images.
@@ -141,15 +123,13 @@ namespace chm {
         };
         std::deque<remote_dependency> remote_dependencies;
 
-        std::string to_hhc(toc_item& item);
-
         void scan_html_for_local_dependencies(const std::string& html); // Looks for local dependencies like images and includes them into the project
         void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded and updates the url to point to a local file
         void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
         void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
         void update_html_remote_links_to_open_in_new_broser_window(std::string& html);
 
-        toc_item create_toc_entries(std::filesystem::path* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
+        TableOfContentsItem create_toc_entries(project_file* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
     };
 
 
