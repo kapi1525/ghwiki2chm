@@ -27,6 +27,8 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
         return false;
     }
 
+    std::filesystem::path sidebar_path;
+
     for (auto &&dir_entry : std::filesystem::recursive_directory_iterator(root_path)) {
         // Skip all non-file entries
         if(!dir_entry.is_regular_file()) {
@@ -42,7 +44,11 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
         // Add compatible file types to project
         // TODO: Refactor
-        if(file.extension() == ".md") {
+        if(file.filename() == "_Sidebar.md") {
+            auto_toc = false;
+            sidebar_path = file;
+        }
+        else if(file.extension() == ".md") {
             files.push_back({file});
         }
         else if(file.extension() == ".html") {
@@ -74,7 +80,13 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
         }
     }
 
-    if (!toc_root_item_name.empty()) {
+    // auto sidebar_toc =
+    if (!sidebar_path.empty()) {
+        std::printf("TOC will be created from sidebar: %s\n", sidebar_path.c_str());
+        toc_root = create_toc_entries_from_sidebar(sidebar_path);
+        // return false;
+    }
+    else if (!toc_root_item_name.empty()) {
         toc_root.children.push_back({.name = toc_root_item_name, .file_link = nullptr});
     }
 
@@ -576,6 +588,172 @@ void chm::project::update_html_remote_links_to_open_in_new_broser_window(std::st
         html.insert(i + match.position(4), to_insert);
         i += to_insert.size();
     }
+}
+
+
+
+chm::project_file* chm::project::find_local_file_pointed_by_url(const std::string& url) {
+    CURLU *url_handle = curl_url();
+    RUtils::Defer( curl_url_cleanup(url_handle); );
+
+    if (CURLUcode err = curl_url_set(url_handle, CURLUPART_URL, url.c_str(), CURLU_DEFAULT_SCHEME | CURLU_NO_AUTHORITY | CURLU_ALLOW_SPACE); err != CURLUE_OK) {
+        std::puts(std::format("Failed to parse link: \"{}\": {}.", url, curl_url_strerror(err)).c_str());
+        return nullptr;
+    }
+
+
+    char *url_host, *url_path;
+    if (CURLUcode err = curl_url_get(url_handle, CURLUPART_HOST, &url_host, 0); err != CURLUE_OK) {
+        RUtils::Error(curl_url_strerror(err), RUtils::ErrorType::library).print();
+        return nullptr;
+    }
+    RUtils::Defer( curl_free(url_host); );
+
+    if (CURLUcode err = curl_url_get(url_handle, CURLUPART_PATH, &url_path, 0); err != CURLUE_OK) {
+        RUtils::Error(curl_url_strerror(err), RUtils::ErrorType::library).print();
+        return nullptr;
+    }
+    RUtils::Defer( curl_free(url_path); );
+
+
+    if (std::strlen(url_host) > 1 || (std::strlen(url_host) == 1 && url_host[0] != '.')) {
+        // not a local link
+        std::printf("not local: %s, %s\n", url_host, url_path);
+        return nullptr;
+    }
+
+    if (std::strlen(url_path) == 0) {
+        // no path
+        std::printf("empty path: %s\n", url_path);
+        return nullptr;
+    }
+
+
+    auto path_to_search = root_path / std::filesystem::relative(url_path);
+    // std::puts();
+
+    std::printf("BBB: %s, %s\n", url_host, url_path);
+    std::printf("AAA: %s\n", path_to_search.c_str());
+
+
+    for (auto& f : files) {
+
+    }
+
+    return nullptr;
+}
+
+
+
+// TODO: This is ugly
+chm::TableOfContentsItem chm::project::create_toc_entries_from_sidebar(std::filesystem::path sidebar_path) {
+    maddy::Parser parser;
+    std::string html_out;
+
+    {
+        std::ifstream sidebar_file(sidebar_path);
+        html_out = parser.Parse(sidebar_file);
+    }
+
+    std::cout << html_out << std::endl;
+
+    std::string_view tag_name_and_attribs;
+    std::string_view tag_contents;
+
+    std::string::iterator tag_open_index = html_out.begin();
+    std::string::iterator tag_contents_begin_index = html_out.begin();
+
+    // tokenizer state
+    bool inside_tag = false;
+
+    // toc item creation state
+    bool inside_item_name = false;
+    bool was_added = false;
+
+    std::regex link_tag_test("\\s*a\\s+href=\"(.*?)\"\\s*");
+    std::match_results<std::string_view::const_iterator> match;
+
+
+    TableOfContentsItem temp_toc_root;
+    TableOfContentsItem temp_toc_item;
+
+    std::vector<TableOfContentsItem*> toc_tree_ptrs;
+    toc_tree_ptrs.push_back(&temp_toc_root);
+
+    for (std::string::iterator it = html_out.begin(); it != html_out.end(); it++) {
+        char &c = *it;
+
+        if (c == '<' && !inside_tag) {
+            inside_tag = true;
+            tag_open_index = it + 1;
+
+            tag_contents = std::string_view(tag_contents_begin_index, it);
+        }
+        else if (c == '>' && inside_tag) {
+            inside_tag = false;
+            tag_name_and_attribs = std::string_view(tag_open_index, it);
+
+            tag_contents_begin_index = it + 1;
+
+
+            // if (tag_name_and_attribs == "ul") {
+            //     *toc_tree_ptrs.back() = temp_toc_item;
+            //     temp_toc_item = {};
+            // }
+
+            if(inside_item_name) {
+                temp_toc_item.name += tag_contents;
+                // std::cout << tag_contents << std::endl;
+            }
+
+            if (tag_name_and_attribs == "li") {
+                inside_item_name = true;
+                temp_toc_item = {};
+                was_added = false;
+            }
+            else if (tag_name_and_attribs == "/li") {
+                inside_item_name = false;
+                if (!was_added) {
+                    temp_toc_item.name = trim_whitespace(remove_hashes(temp_toc_item.name));
+                    toc_tree_ptrs.back()->children.push_back(temp_toc_item);
+                    std::puts("added /li");
+                    was_added = true;
+                }
+            }
+            else if (tag_name_and_attribs == "ul") {
+                inside_item_name = false;
+                if (!was_added && !temp_toc_item.name.empty() && toc_tree_ptrs.size() > 0) {
+                    temp_toc_item.name = trim_whitespace(remove_hashes(temp_toc_item.name));
+                    toc_tree_ptrs.back()->children.push_back(temp_toc_item);
+                    toc_tree_ptrs.push_back(&toc_tree_ptrs.back()->children.back());
+                    std::puts("added ul");
+                    was_added = true;
+                }
+            }
+            else if (tag_name_and_attribs == "/ul") {
+                if (toc_tree_ptrs.size() > 0) {
+                    toc_tree_ptrs.pop_back();
+                }
+            }
+            else if (inside_item_name && std::regex_match(tag_name_and_attribs.begin(), tag_name_and_attribs.end(), match, link_tag_test)) {
+                // Found a link.
+
+                std::cout << match[1] << std::endl;
+                // temp_toc_item.file_link = match[1];
+
+                find_local_file_pointed_by_url(match[1]);
+            }
+        }
+        // else if (c == '/' && just_entered_tag) {
+        //     close_tag = true;
+        // }
+    }
+
+
+
+    // std::printf("%s\n", html_out.c_str());
+
+    return temp_toc_root;
 }
 
 

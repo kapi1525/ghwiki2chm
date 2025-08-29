@@ -67,3 +67,17 @@ std::string_view trim_whitespace(std::string_view in) {
 
     return in.substr(start, end - start);
 }
+
+std::string remove_hashes(std::string_view in) {
+    std::string out;
+
+    out.reserve(in.size());
+
+    for (auto c : in) {
+        if(c != '#') {
+            out += c;
+        }
+    }
+
+    return out;
+}
