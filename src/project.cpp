@@ -7,7 +7,6 @@
 #include <regex>
 #include <format>
 
-#include "RUtils/Link.hpp"      // TODO: Replace with curl_url
 #include "RUtils/ForEach.hpp"
 #include "RUtils/Defer.hpp"
 
@@ -27,6 +26,8 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
         return false;
     }
 
+    std::filesystem::path sidebar_path;
+
     for (auto &&dir_entry : std::filesystem::recursive_directory_iterator(root_path)) {
         // Skip all non-file entries
         if(!dir_entry.is_regular_file()) {
@@ -42,7 +43,11 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
 
         // Add compatible file types to project
         // TODO: Refactor
-        if(file.extension() == ".md") {
+        if(file.filename() == "_Sidebar.md") {
+            auto_toc = false;
+            sidebar_path = file;
+        }
+        else if(file.extension() == ".md") {
             files.push_back({file});
         }
         else if(file.extension() == ".html") {
@@ -74,7 +79,13 @@ bool chm::project::create_from_ghwiki(std::filesystem::path default_file) {
         }
     }
 
-    if (!toc_root_item_name.empty()) {
+    // auto sidebar_toc =
+    if (!sidebar_path.empty()) {
+        std::printf("TOC will be created from sidebar: %s\n", sidebar_path.c_str());
+        toc_root = create_toc_entries_from_sidebar(sidebar_path);
+        // return false;
+    }
+    else if (!toc_root_item_name.empty()) {
         toc_root.children.push_back({.name = toc_root_item_name, .file_link = nullptr});
     }
 
@@ -132,8 +143,8 @@ void chm::project::convert_source_files(std::uint32_t max_jobs) {
             scan_html_for_local_dependencies(html_out);
             scan_html_for_remote_dependencies(html_out);
             update_html_headings(html_out);
-            update_html_links(html_out);
             update_html_remote_links_to_open_in_new_broser_window(html_out);
+            update_html_links(html_out);
 
             {
                 std::ofstream html_file(file.target);
@@ -480,57 +491,20 @@ void chm::project::update_html_links(std::string& html) {
         }
 
         std::string url_str = match[2];
-        auto url_parsed = Link::parse(url_str).value();
+        project_file* url_target = find_local_file_pointed_by_url(url_str);
 
-        // Parse the link and check if link is to a local resource, if not skip it.
-        if(!url_parsed.host.empty() || url_parsed.resource_path.empty()) {
+        if(!url_target) {
+            // std::printf("  Unknown link: \"%s\", it will be broken inside the compiled .chm file.\n", url_str.c_str());
             continue;
         }
 
+        std::string new_link_tag = match[1];
+        new_link_tag += std::filesystem::relative(url_target->target, temp_path).string();
+        new_link_tag += match[3];
 
-        bool handled = false;
+        html.replace(i + match.position(), match.length(), new_link_tag);
 
-        for (auto &&file : files) {
-            // links to files
-            if(std::filesystem::relative(url_parsed.resource_path, root_path) == std::filesystem::relative(file.original, root_path)) {
-                url_parsed.resource_path = std::filesystem::relative(file.target, temp_path).string();
-                handled = true;
-                break;
-            }
-
-            // github wiki page links
-            std::string link_target;
-
-            for (auto c : std::filesystem::relative(file.original, root_path).replace_extension("").string()) {
-                if(std::isspace(c)) {
-                    link_target += '-';
-                }
-                if(std::isalnum(c)) {
-                    link_target += std::tolower(c);
-                }
-                if(c == '/') {
-                    link_target += c;
-                }
-            }
-
-            if(url_parsed.resource_path == link_target) {
-                url_parsed.resource_path = std::filesystem::relative(file.target, temp_path).string();
-                handled = true;
-                break;
-            }
-        }
-
-        if(handled) {
-            std::string new_link_tag = match[1];
-            new_link_tag += url_parsed.to_string();
-            new_link_tag += match[3];
-
-            html.replace(i + match.position(), match.length(), new_link_tag);
-
-            i += new_link_tag.length() - match.size();
-        } else {
-            std::printf("  Unknown link: \"%s\", it will be broken inside the compiled .chm file.\n", url_str.c_str());
-        }
+        i += new_link_tag.length() - match.size();
     }
 }
 
@@ -568,7 +542,7 @@ void chm::project::update_html_remote_links_to_open_in_new_broser_window(std::st
 
         size_t url_host_sz = std::strlen(url_host);
 
-        if (url_host_sz == 0) {
+        if (url_host_sz == 0 || (url_host_sz == 1 && url_host[0] == '.')) {
             continue;
         }
 
@@ -576,6 +550,186 @@ void chm::project::update_html_remote_links_to_open_in_new_broser_window(std::st
         html.insert(i + match.position(4), to_insert);
         i += to_insert.size();
     }
+}
+
+
+
+chm::project_file* chm::project::find_local_file_pointed_by_url(const std::string& url) {
+    CURLU *url_handle = curl_url();
+    RUtils::Defer( curl_url_cleanup(url_handle); );
+
+    if (CURLUcode err = curl_url_set(url_handle, CURLUPART_URL, url.c_str(), CURLU_DEFAULT_SCHEME | CURLU_NO_AUTHORITY | CURLU_ALLOW_SPACE); err != CURLUE_OK) {
+        std::puts(std::format("Failed to parse link: \"{}\": {}.", url, curl_url_strerror(err)).c_str());
+        return nullptr;
+    }
+
+
+    char *url_host, *url_path;
+    if (CURLUcode err = curl_url_get(url_handle, CURLUPART_HOST, &url_host, 0); err != CURLUE_OK) {
+        RUtils::Error(curl_url_strerror(err), RUtils::ErrorType::library).print();
+        return nullptr;
+    }
+    RUtils::Defer( curl_free(url_host); );
+
+    if (CURLUcode err = curl_url_get(url_handle, CURLUPART_PATH, &url_path, 0); err != CURLUE_OK) {
+        RUtils::Error(curl_url_strerror(err), RUtils::ErrorType::library).print();
+        return nullptr;
+    }
+    RUtils::Defer( curl_free(url_path); );
+
+
+    if (std::strlen(url_host) > 1 || (std::strlen(url_host) == 1 && url_host[0] != '.')) {
+        // not a local link
+        // std::printf("not local: %s, %s\n", url_host, url_path);
+        return nullptr;
+    }
+
+    if (std::strlen(url_path) <= 1) {
+        // no path
+        // std::printf("empty path: %s\n", url_path);
+        return nullptr;
+    }
+
+
+
+    // paths always start with '/', skip it to get correct result.
+    std::filesystem::path path_to_search = &url_path[1];
+
+    for (auto& f : files) {
+        auto original = std::filesystem::relative(f.original, root_path);
+
+        // links to files
+        if (path_to_search == original) {
+            return &f;
+        }
+
+
+
+        // github wiki page links
+        // no file extension
+        // dashes instead of spaces
+        // all lower case
+        original = original.replace_extension("");
+
+        auto link_normalize = [](std::string& inout) {
+            for (auto &c : inout) {
+                if (std::isspace(c)) {
+                    c = '-';
+                }
+                else if (std::isalnum(c)) {
+                    c = std::tolower(c);
+                }
+            }
+        };
+
+        std::string path_normalized = path_to_search.string();
+        std::string original_normalized = original.string();
+
+        link_normalize(path_normalized);
+        link_normalize(original_normalized);
+
+        if (path_normalized == original_normalized) {
+            return &f;
+        }
+    }
+
+    RUtils::Error(std::format("Failed to find a file that the link was pointing to, it's either a bug or the link is wrong. Link: \"{}\"", url)).print();
+
+    return nullptr;
+}
+
+
+
+// TODO: This is ugly
+chm::TableOfContentsItem chm::project::create_toc_entries_from_sidebar(std::filesystem::path sidebar_path) {
+    maddy::Parser parser;
+    std::string html_out;
+
+    {
+        std::ifstream sidebar_file(sidebar_path);
+        html_out = parser.Parse(sidebar_file);
+    }
+
+
+
+    std::string_view tag_name_and_attribs;
+    std::string_view tag_contents;
+
+    std::string::iterator tag_open_index = html_out.begin();
+    std::string::iterator tag_contents_begin_index = html_out.begin();
+
+    // tokenizer state
+    bool inside_tag = false;
+
+    // toc item creation state
+    bool inside_item_name = false;
+    bool was_added = false;
+
+    std::regex link_tag_test("\\s*a\\s+href=\"(.*?)\"\\s*");
+    std::match_results<std::string_view::const_iterator> match;
+
+
+    TableOfContentsItem temp_toc_root;
+    TableOfContentsItem temp_toc_item;
+
+    std::vector<TableOfContentsItem*> toc_tree_ptrs;
+    toc_tree_ptrs.push_back(&temp_toc_root);
+
+    for (std::string::iterator it = html_out.begin(); it != html_out.end(); it++) {
+        char &c = *it;
+
+        if (c == '<' && !inside_tag) {
+            inside_tag = true;
+            tag_open_index = it + 1;
+
+            tag_contents = std::string_view(tag_contents_begin_index, it);
+        }
+        else if (c == '>' && inside_tag) {
+            inside_tag = false;
+            tag_name_and_attribs = std::string_view(tag_open_index, it);
+
+            tag_contents_begin_index = it + 1;
+
+
+            if(inside_item_name) {
+                temp_toc_item.name += tag_contents;
+            }
+
+            if (tag_name_and_attribs == "li") {
+                inside_item_name = true;
+                temp_toc_item = {};
+                was_added = false;
+            }
+            else if (tag_name_and_attribs == "/li") {
+                inside_item_name = false;
+                if (!was_added) {
+                    temp_toc_item.name = trim_whitespace(remove_hashes(temp_toc_item.name));
+                    toc_tree_ptrs.back()->children.push_back(temp_toc_item);
+                    was_added = true;
+                }
+            }
+            else if (tag_name_and_attribs == "ul") {
+                inside_item_name = false;
+                if (!was_added && !temp_toc_item.name.empty() && toc_tree_ptrs.size() > 0) {
+                    temp_toc_item.name = trim_whitespace(remove_hashes(temp_toc_item.name));
+                    toc_tree_ptrs.back()->children.push_back(temp_toc_item);
+                    toc_tree_ptrs.push_back(&toc_tree_ptrs.back()->children.back());
+                    was_added = true;
+                }
+            }
+            else if (tag_name_and_attribs == "/ul") {
+                if (toc_tree_ptrs.size() > 0) {
+                    toc_tree_ptrs.pop_back();
+                }
+            }
+            else if (inside_item_name && std::regex_match(tag_name_and_attribs.begin(), tag_name_and_attribs.end(), match, link_tag_test)) {
+                temp_toc_item.file_link = find_local_file_pointed_by_url(match[1]);
+            }
+        }
+    }
+
+
+    return temp_toc_root;
 }
 
 

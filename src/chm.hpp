@@ -129,6 +129,9 @@ namespace chm {
         void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
         void update_html_remote_links_to_open_in_new_broser_window(std::string& html);
 
+        project_file* find_local_file_pointed_by_url(const std::string& url);
+
+        TableOfContentsItem create_toc_entries_from_sidebar(std::filesystem::path sidebar_path);
         TableOfContentsItem create_toc_entries(project_file* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
     };
 
