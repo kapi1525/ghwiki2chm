@@ -3,8 +3,9 @@
 
 #include "RUtils/CommandLine.hpp"
 
-#include "chm.hpp"
+#include "project.hpp"
 #include "config.hpp"
+#include "compiler.hpp"
 
 
 
@@ -13,12 +14,11 @@ int main(int argc, const char *argv[]) {
     std::setbuf(stdout, nullptr);
     std::setbuf(stderr, nullptr);
 
-    chm::project proj;
+    chm::ProjectConfig config;
 
-    proj.title = "Untitled project";
-    proj.root_path = std::filesystem::current_path();
-    proj.temp_path = std::filesystem::current_path() / "temp";
-    proj.out_file = std::filesystem::current_path() / "out.chm";
+    config.root = std::filesystem::current_path();
+    config.temp = std::filesystem::current_path() / "temp";
+    config.out_file = std::filesystem::current_path() / "out.chm";
 
     std::filesystem::path default_file;
     std::uint32_t max_jobs = 0;
@@ -53,7 +53,7 @@ int main(int argc, const char *argv[]) {
                 'n',
                 "name",
                 [&](std::string param) {
-                    proj.title = param;
+                    config.title = param;
                 },
                 "name",
                 "Project name. Will be visible in compiled chm.",
@@ -62,7 +62,7 @@ int main(int argc, const char *argv[]) {
                 'r',
                 "root",
                 [&](std::string param) {
-                    proj.root_path = std::filesystem::absolute(param);
+                    config.root = std::filesystem::absolute(param);
                 },
                 "directory",
                 "Project root. (default: \".\")",
@@ -80,7 +80,7 @@ int main(int argc, const char *argv[]) {
                 't',
                 "temp-path",
                 [&](std::string param) {
-                    proj.temp_path = std::filesystem::absolute(param);
+                    config.temp = std::filesystem::absolute(param);
                 },
                 "directory",
                 "Temp directory. (default: \"./temp\")",
@@ -89,7 +89,7 @@ int main(int argc, const char *argv[]) {
                 'o',
                 "out-file",
                 [&](std::string param) {
-                    proj.out_file = std::filesystem::absolute(param);
+                    config.out_file = std::filesystem::absolute(param);
                 },
                 "file",
                 "Output .chm file path. (default: \"./out.chm\")",
@@ -109,7 +109,7 @@ int main(int argc, const char *argv[]) {
                 0,
                 "toc-no-section-links",
                 [&]() {
-                    proj.toc_no_section_links = true;
+                    config.toc_no_section_links = true;
                 },
                 nullptr,
                 "Don't create TOC items for page sections.",
@@ -118,7 +118,7 @@ int main(int argc, const char *argv[]) {
                 0,
                 "toc-root-item-name",
                 [&](std::string param) {
-                    proj.toc_root_item_name = param;
+                    config.toc_root_item_name = param;
                 },
                 "name",
                 "Don't create TOC items for page sections.",
@@ -161,24 +161,23 @@ int main(int argc, const char *argv[]) {
         return 0;
     }
 
-    std::filesystem::create_directories(proj.temp_path);
+    std::filesystem::create_directories(config.temp);
 
-    if(!proj.create_from_ghwiki(default_file)) {
-        std::printf("No .md files found in \"%s\", is this the right directory?\n", proj.root_path.string().c_str());
-        return 1;
-    }
+    chm::ProjectData data = chm::create_project_data_from_ghwiki(config, default_file);
 
-    proj.convert_source_files(max_jobs);
-    proj.download_dependencies(max_downloads, ignore_ssl, curl_verbose);
-    proj.generate_project_files();
+    chm::convert_project_files(config, data, max_jobs);
+    chm::download_dependencies(config, data, max_downloads, ignore_ssl, curl_verbose);
+    chm::generate_project_files(config, data);
 
     auto* compiler = chm::find_available_compiler();
     if(!compiler) {
         std::printf("Couldn't find any compatible chm compiler, make sure one is installed.\n");
         return 1;
     }
+
     std::printf("Starting compiler...\n");
-    if(!chm::compile(&proj, compiler)) {
+
+    if(!chm::compile(config, compiler)) {
         std::printf("Compilation failed.\n");
         return 1;
     }

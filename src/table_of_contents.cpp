@@ -1,9 +1,13 @@
+#include <regex>
+
 #include "table_of_contents.hpp"
+#include "helpers.hpp"
+#include "project.hpp"
 
 
 
 // Converts to hhc format. Toc item is treated as root, all members except children are not needed.
-std::string chm::TableOfContentsItem::to_hhc(const std::filesystem::path& temp_path) {
+std::string chm::TableOfContentsItem::to_hhc(const std::filesystem::path& temp_path) const {
     std::string ret = "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\">\n"
     "<HTML>\n"
     "<HEAD>\n"
@@ -28,7 +32,7 @@ std::string chm::TableOfContentsItem::to_hhc(const std::filesystem::path& temp_p
 }
 
 // Converts item to hhc format. Recursive.
-std::string chm::TableOfContentsItem::to_hhc_entry(const std::filesystem::path& temp_path) {
+std::string chm::TableOfContentsItem::to_hhc_entry(const std::filesystem::path& temp_path) const {
     std::string ret = "<LI> <OBJECT type=\"text/sitemap\">\n";
     ret += "<param name=\"Name\" value=\"" + name + "\">\n";
 

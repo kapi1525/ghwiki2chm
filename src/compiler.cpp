@@ -1,7 +1,7 @@
 #include "RUtils/Process.hpp"
 #include "RUtils/Helpers.hpp"
 
-#include "chm.hpp"
+#include "compiler.hpp"
 
 
 
@@ -35,7 +35,7 @@ const chm::compiler_info* chm::find_available_compiler() {
 
 // Currently only checks if it exists
 // TODO: Maybe run compilers with --help arg to check if they work?
-bool chm::is_compiler_valid(const compiler_info* compiler) {
+bool chm::is_compiler_valid(const compiler_info *compiler) {
     if(!compiler) {
         return false;
     }
@@ -45,7 +45,7 @@ bool chm::is_compiler_valid(const compiler_info* compiler) {
 
 
 
-bool chm::compile(project* proj, const compiler_info* compiler) {
+bool chm::compile(const ProjectConfig &config, const compiler_info *compiler) {
     std::vector<std::string> args;
 
     for (auto &&i : compiler->args) {
@@ -59,7 +59,7 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
             [&](compiler_special_arg arg) {
                 switch (arg) {
                 case compiler_special_arg::project_file_path:
-                    args.push_back((proj->temp_path / "proj.hhp").string());
+                    args.push_back((config.temp / "proj.hhp").string());
                     return;
                 }
 
@@ -68,7 +68,7 @@ bool chm::compile(project* proj, const compiler_info* compiler) {
         }, i);
     }
 
-    int status = RUtils::run_process(RUtils::find_executable(compiler->executable), args, proj->temp_path);
+    int status = RUtils::run_process(RUtils::find_executable(compiler->executable), args, config.temp);
     std::printf("Compiler exited with exit code: %i.\n", status);
     return status == 0;
 }

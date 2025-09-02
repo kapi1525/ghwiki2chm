@@ -1,21 +1,12 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
-#include <deque>
-#include <string>
-#include <filesystem>
-#include <variant>
-
-#include "project_file.hpp"
-#include "table_of_contents.hpp"
 
 
 
 namespace chm {
-
     // https://www.nongnu.org/chmspec/latest/INI.html#HHP_WINDOWS
-    enum navigation_window_style : std::uint32_t {
+    enum NavigationWindowStyle : std::uint32_t {
         auto_hide_sidebar       = 0x00000001, // Automatically hide/show tri-pane window: when the help window has focus the navigation pane is visible, otherwise it is hidden.
         always_on_top           = 0x00000002, // Keep the help window on top.
         no_titlebar             = 0x00000004, // No title bar
@@ -49,7 +40,7 @@ namespace chm {
         default_style = (tri_pane_window | sync_sidebar_with_topic | search_tab | html_title_in_titlebar | resizable | margin),
     };
 
-    enum toolbar_buttons : std::uint32_t {
+    enum ToolbarButtons : std::uint32_t {
         hide_show               = 0x00000002, // Hide/Show button hides/shows the navigation pane.
         back                    = 0x00000004, // Back button.
         forward                 = 0x00000008, // Forward button.
@@ -75,80 +66,4 @@ namespace chm {
 
         default_buttons = (hide_show | locate | back | forward | home | print | options),
     };
-
-
-    class project {
-    public:
-        project() = default;
-        ~project() = default;
-
-        std::filesystem::path root_path, temp_path, out_file;
-        std::filesystem::path* default_file_link = nullptr;
-        std::string title = "test";
-        TableOfContentsItem toc_root;
-        bool auto_toc = true;
-        bool toc_no_section_links = false;
-        std::string toc_root_item_name;
-
-        // create a project config automaticaly from md files and _Sidebar.
-        bool create_from_ghwiki(std::filesystem::path default_file);
-
-        // Copy or covert project source files to temp dir
-        void convert_source_files(std::uint32_t max_jobs);
-
-        // Download remote images that are used in the project
-        void download_dependencies(size_t max_downloads, bool ignore_ssl, bool verbose);
-        void generate_project_files();      // Create .hhc .hhp
-
-
-    private:
-        std::deque<project_file> files;
-
-        // Aditional local files that should be included into the chm, like images.
-        // Images and other files should be here because files deque cant be changed during scaning for dependencies.
-        std::deque<project_file> local_dependencies;
-
-        enum class download_state : uint8_t {
-            none,
-            downloading,
-            downloaded,
-            download_failed,
-        };
-
-        // Files on the web that should be downloaded and included into the chm, like images.
-        struct remote_dependency {
-            std::string link;
-            std::filesystem::path target;
-            download_state state = download_state::none;
-        };
-        std::deque<remote_dependency> remote_dependencies;
-
-        void scan_html_for_local_dependencies(const std::string& html); // Looks for local dependencies like images and includes them into the project
-        void scan_html_for_remote_dependencies(std::string& html);      // Same as above but looks for remote images that should be downloaded and updates the url to point to a local file
-        void update_html_headings(std::string& html);                   // Update heading tags (<h1>) to include id like in github wikis
-        void update_html_links(std::string& html);                      // Update link tags <a> to have correct url
-        void update_html_remote_links_to_open_in_new_broser_window(std::string& html);
-
-        project_file* find_local_file_pointed_by_url(const std::string& url);
-
-        TableOfContentsItem create_toc_entries_from_sidebar(std::filesystem::path sidebar_path);
-        TableOfContentsItem create_toc_entries(project_file* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
-    };
-
-
-
-    // Special arguments that shoud be replaced with actual value before calling the compiler
-    enum class compiler_special_arg {
-        project_file_path,
-    };
-
-    struct compiler_info {
-        std::string executable;
-        std::vector<std::variant<std::string, compiler_special_arg>> args;
-    };
-
-
-    const compiler_info* find_available_compiler();
-    bool is_compiler_valid(const compiler_info* compiler);
-    bool compile(project* proj, const compiler_info* compiler);
 }
