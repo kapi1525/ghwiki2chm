@@ -16,15 +16,12 @@ int main(int argc, const char *argv[]) {
 
     chm::ProjectConfig config;
 
-    config.root = std::filesystem::current_path();
-    config.temp = std::filesystem::current_path() / "temp";
-    config.out_file = std::filesystem::current_path() / "out.chm";
+    auto pwd = std::filesystem::current_path();
+    config.root = pwd;
+    config.temp = pwd / "temp";
+    config.out_file = pwd / "out.chm";
 
     std::filesystem::path default_file;
-    std::uint32_t max_jobs = 0;
-    size_t max_downloads = 8;
-    bool ignore_ssl = false;
-    bool curl_verbose = false;
 
     RUtils::CommandLine cmd = {
         .program_name = "ghwiki2chm",
@@ -98,21 +95,31 @@ int main(int argc, const char *argv[]) {
                 'j',
                 "jobs",
                 [&](std::string param) {
-                    if(std::sscanf(param.c_str(), "%u", &max_jobs) != 1) {
+                    if(std::sscanf(param.c_str(), "%u", &config.max_jobs) != 1) {
                         std::printf("-j --jobs: expected a positive number or 0 but got: \"%s\". Ignored...\n", param.c_str());
                     }
                 },
                 "amount",
                 "Max nuber of threads to use during conversion. (default: number of threads)",
             },
+            // {
+            //     0,
+            //     "toc-no-section-links",
+            //     [&]() {
+            //         config.toc_no_section_links = true;
+            //     },
+            //     nullptr,
+            //     "Don't create TOC items for page sections.",
+            // },
             {
                 0,
-                "toc-no-section-links",
+                "toc-auto-generate",
                 [&]() {
-                    config.toc_no_section_links = true;
+                    config.toc_generate_automagically = true;
+                    config.toc_use_sidebar = false;
                 },
                 nullptr,
-                "Don't create TOC items for page sections.",
+                "Create TOC items automatically. Use if you don't have a _Sidebar.md.",
             },
             {
                 0,
@@ -127,9 +134,9 @@ int main(int argc, const char *argv[]) {
                 0,
                 "max-downloads",
                 [&](std::string param) {
-                    if(std::sscanf(param.c_str(), "%zu", &max_downloads) != 1 || max_downloads == 0) {
+                    if(std::sscanf(param.c_str(), "%u", &config.max_downloads) != 1 || config.max_downloads == 0) {
                         std::printf("--max-downloads: expected a positive number but got: \"%s\". Ignored...\n", param.c_str());
-                        max_downloads = 8;
+                        config.max_downloads = 8;
                     }
                 },
                 "amount",
@@ -139,7 +146,7 @@ int main(int argc, const char *argv[]) {
                 0,
                 "ignore-ssl",
                 [&]() {
-                    ignore_ssl = true;
+                    config.dep_download_ignore_ssl = true;
                 },
                 nullptr,
                 "Ignore ssl certificates when downloading files.",
@@ -148,7 +155,7 @@ int main(int argc, const char *argv[]) {
                 0,
                 "curl-verbose",
                 [&]() {
-                    curl_verbose = true;
+                    config.dep_download_curl_verbose = true;
                 },
                 nullptr,
                 "Enable verbose output for curl library.",
@@ -165,8 +172,8 @@ int main(int argc, const char *argv[]) {
 
     chm::ProjectData data = chm::create_project_data_from_ghwiki(config, default_file);
 
-    chm::convert_project_files(config, data, max_jobs);
-    chm::download_dependencies(config, data, max_downloads, ignore_ssl, curl_verbose);
+    chm::convert_project_files(config, data);
+    chm::download_dependencies(config, data);
     chm::generate_project_files(config, data);
 
     auto* compiler = chm::find_available_compiler();

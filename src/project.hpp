@@ -19,12 +19,20 @@ namespace chm {
 
         std::string toc_root_item_name;
 
-        bool toc_create_items_for_sections = true;
-        bool toc_no_section_links = false;
+        std::uint32_t max_jobs = 0;
+        std::uint32_t max_downloads = 8;
+
+        // Those shoud probably be converted to bitflags, but who cares
+        bool toc_use_sidebar = true;
+        bool toc_generate_automagically = false;
+
+        bool dep_download_ignore_ssl = false;
+        bool dep_download_curl_verbose = false;
     };
 
     struct ProjectData {
         TableOfContentsItem toc_root;
+        TableOfContentsItem *toc = nullptr;
         ProjectFile* default_file_link = nullptr;
         std::deque<ProjectFile> files;                      // Project files, that may be converted and are pages.
         std::deque<ProjectFile> local_dependencies;         // Other files like images, required by project pages
@@ -32,10 +40,10 @@ namespace chm {
     };
 
     // Search for compatible files in root path, create ProjectData from them.
-    RUtils::ErrorOr<ProjectData> create_project_data_from_ghwiki(ProjectConfig &config, std::filesystem::path default_file);
+    RUtils::ErrorOr<ProjectData> create_project_data_from_ghwiki(const ProjectConfig &config, std::filesystem::path default_file);
 
     // Run converters for project files
-    void convert_project_files(const ProjectConfig &config, ProjectData &data, std::uint32_t max_jobs);
+    void convert_project_files(const ProjectConfig &config, ProjectData &data);
 
 
     // Looks for local dependencies like images and includes them into the project
@@ -44,7 +52,7 @@ namespace chm {
     void scan_html_for_remote_dependencies(const ProjectConfig &config, ProjectData &data, std::string &html);
 
     // Download remote images that are used in the project
-    void download_dependencies(const ProjectConfig &config, ProjectData &data, std::size_t max_downloads, bool ignore_ssl, bool verbose);
+    void download_dependencies(const ProjectConfig &config, ProjectData &data);
     // Create .hhc .hhp
     void generate_project_files(const ProjectConfig &config, const ProjectData &data);
 
@@ -58,5 +66,5 @@ namespace chm {
 
 
     TableOfContentsItem create_toc_entries_from_sidebar(const ProjectConfig &config, ProjectData &data, std::filesystem::path sidebar_path);
-    TableOfContentsItem create_toc_entries(const ProjectConfig &config, ProjectFile* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
+    // TableOfContentsItem create_toc_entries(const ProjectConfig &config, ProjectFile* file, const std::string& html);  // Create toc entry by looking for heading tags in generated html
 }

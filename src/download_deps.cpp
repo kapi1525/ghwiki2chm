@@ -19,7 +19,7 @@ static size_t write_callback(char *ptr, std::size_t size, std::size_t nmemb, std
 }
 
 // Download remote dependencies
-void chm::download_dependencies(const ProjectConfig &config, ProjectData &data, std::size_t max_downloads, bool ignore_ssl, bool verbose) {
+void chm::download_dependencies(const ProjectConfig &config, ProjectData &data) {
     // Nothing to download.
     if(data.remote_dependencies.size() == 0) {
         return;
@@ -28,7 +28,7 @@ void chm::download_dependencies(const ProjectConfig &config, ProjectData &data, 
     std::printf("Will download %zu remote dependencies...\n", data.remote_dependencies.size());
 
 
-    max_downloads = std::min(max_downloads, data.remote_dependencies.size());
+    size_t max_downloads = std::min((size_t)config.max_downloads, data.remote_dependencies.size());
     size_t next_dep_to_download_index = 0;  // index to remote_dependencies[]
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -46,10 +46,10 @@ void chm::download_dependencies(const ProjectConfig &config, ProjectData &data, 
     for (auto& download : downloaders) {
         CURL* handle = curl_easy_init();
         curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, !ignore_ssl);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, !ignore_ssl);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, !config.dep_download_ignore_ssl);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, !config.dep_download_ignore_ssl);
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(handle, CURLOPT_VERBOSE, verbose);
+        curl_easy_setopt(handle, CURLOPT_VERBOSE, config.dep_download_curl_verbose);
         download.handle = handle;
     }
 
