@@ -40,7 +40,7 @@ jobs:
         run: meson compile -C bin -v
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ env.BUNDLE_NAME_HASH }}
           path: bin/ghwiki2chm.exe
@@ -101,7 +101,7 @@ jobs:
           meson install -C bin
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ env.BUNDLE_NAME_HASH }}
           path: ghwiki2chm
