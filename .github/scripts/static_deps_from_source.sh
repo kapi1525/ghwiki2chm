@@ -62,15 +62,15 @@ function autotools_build() {
 }
 
 
-wolfssl_version=5.8.2
-nghttp2_version=1.66.0
-ngtcp2_version=1.14.0
-nghttp3_version=1.11.0
-zlib_version=1.3.1
+wolfssl_version=5.9.1
+nghttp2_version=1.68.1
+ngtcp2_version=1.22.0
+nghttp3_version=1.15.0
+zlib_version=1.3.2
 zstd_version=1.5.7
-brotli_version=1.1.0
+brotli_version=1.2.0
 
-curl_version=8.15.0
+curl_version=8.19.0
 
 
 if [ ! -d "temp" ]; then
@@ -86,6 +86,9 @@ autotools_build wolfssl \
     --enable-curl \
     --disable-examples \
     --disable-crypttests \
+    --enable-all \
+    --enable-aesni \
+    --enable-keylog-export \
     --enable-quic \
 
 get_and_enter https://github.com/nghttp2/nghttp2/releases/download/v$nghttp2_version/nghttp2-$nghttp2_version.tar.gz nghttp2-$nghttp2_version
